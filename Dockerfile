@@ -45,7 +45,15 @@ ENV NODE_ENV=production
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
+    unzip \
+    ffmpeg \
   && rm -rf /var/lib/apt/lists/*
+
+# Install gog CLI (Google Workspace CLI)
+RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gog_0.9.0_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin gog \
+    && chmod +x /usr/local/bin/gog
 
 WORKDIR /app
 
