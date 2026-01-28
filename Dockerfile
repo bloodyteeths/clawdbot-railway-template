@@ -69,9 +69,11 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /clawdbot/dist/entry.js "$@"'
   && chmod +x /usr/local/bin/clawdbot
 
 COPY src ./src
+COPY scripts/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 # The wrapper listens on this port.
 ENV CLAWDBOT_PUBLIC_PORT=8080
 ENV PORT=8080
 EXPOSE 8080
-CMD ["node", "src/server.js"]
+CMD ["./entrypoint.sh"]
