@@ -51,7 +51,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Install gog CLI (Google Workspace CLI)
-RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gog_0.9.0_linux_amd64.tar.gz \
+RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz \
     | tar -xz -C /usr/local/bin gog \
     && chmod +x /usr/local/bin/gog
 
