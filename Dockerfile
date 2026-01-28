@@ -48,7 +48,13 @@ RUN apt-get update \
     curl \
     unzip \
     ffmpeg \
+    python3 \
+    python3-pip \
   && rm -rf /var/lib/apt/lists/*
+
+# Install uv (Python package manager for nano-banana-pro image generation)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
 
 # Install gog CLI (Google Workspace CLI)
 RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz \
