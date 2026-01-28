@@ -579,6 +579,148 @@ app.post("/setup/api/pairing/approve", requireSetupAuth, async (req, res) => {
   return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: r.output });
 });
 
+// WhatsApp QR code endpoint - streams terminal output with larger font
+app.get("/setup/whatsapp-qr", requireSetupAuth, async (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WhatsApp QR Code</title>
+  <style>
+    body {
+      background: #000;
+      color: #fff;
+      font-family: monospace;
+      padding: 20px;
+      margin: 0;
+    }
+    h1 { color: #25D366; }
+    #qr {
+      font-size: 8px;
+      line-height: 8px;
+      letter-spacing: 0px;
+      white-space: pre;
+      background: #fff;
+      color: #000;
+      padding: 20px;
+      display: inline-block;
+      margin: 20px 0;
+    }
+    #log {
+      font-size: 12px;
+      margin-top: 20px;
+      padding: 10px;
+      background: #111;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .instructions {
+      background: #222;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📱 WhatsApp QR Code</h1>
+  <div class="instructions">
+    <p><strong>Instructions:</strong></p>
+    <ol>
+      <li>Open WhatsApp on your phone</li>
+      <li>Tap <strong>Settings → Linked Devices → Link a Device</strong></li>
+      <li>Point your camera at the QR code below</li>
+    </ol>
+    <p><em>QR codes expire every ~30 seconds. Refresh the page if needed.</em></p>
+  </div>
+  <div id="qr">Loading QR code...</div>
+  <div id="log"></div>
+  <script>
+    const qrEl = document.getElementById('qr');
+    const logEl = document.getElementById('log');
+
+    async function fetchQR() {
+      qrEl.textContent = 'Starting WhatsApp link process...';
+      try {
+        const res = await fetch('/setup/api/whatsapp-qr-stream', { credentials: 'same-origin' });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Look for QR codes in the output
+          const lines = buffer.split('\\n');
+          let qrLines = [];
+          let inQR = false;
+
+          for (const line of lines) {
+            if (line.includes('▄') || line.includes('█') || line.includes('▀')) {
+              qrLines.push(line);
+              inQR = true;
+            } else if (inQR && qrLines.length > 5) {
+              // End of QR
+              break;
+            }
+          }
+
+          if (qrLines.length > 10) {
+            qrEl.textContent = qrLines.join('\\n');
+          }
+
+          if (buffer.includes('Successfully linked') || buffer.includes('connected')) {
+            qrEl.innerHTML = '<span style="color:green;font-size:24px">✅ WhatsApp Connected!</span>';
+            logEl.textContent = 'WhatsApp linked successfully. You can close this page.';
+            return;
+          }
+        }
+      } catch (e) {
+        qrEl.textContent = 'Error: ' + e.message + '. Try refreshing.';
+      }
+    }
+
+    fetchQR();
+  </script>
+</body>
+</html>`);
+});
+
+app.get("/setup/api/whatsapp-qr-stream", requireSetupAuth, async (req, res) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Transfer-Encoding", "chunked");
+  res.setHeader("Cache-Control", "no-cache");
+
+  const proc = childProcess.spawn(CLAWDBOT_NODE, clawArgs(["channels", "login", "--channel", "whatsapp", "--verbose"]), {
+    env: {
+      ...process.env,
+      CLAWDBOT_STATE_DIR: STATE_DIR,
+      CLAWDBOT_WORKSPACE_DIR: WORKSPACE_DIR,
+    },
+  });
+
+  proc.stdout?.on("data", (d) => res.write(d));
+  proc.stderr?.on("data", (d) => res.write(d));
+
+  proc.on("close", () => res.end());
+  proc.on("error", (err) => {
+    res.write(`Error: ${err.message}\n`);
+    res.end();
+  });
+
+  req.on("close", () => {
+    try { proc.kill(); } catch {}
+  });
+
+  // Timeout after 3 minutes
+  setTimeout(() => {
+    try { proc.kill(); } catch {}
+    res.end();
+  }, 180000);
+});
+
 app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
   // Minimal reset: delete the config file so /setup can rerun.
   // Keep credentials/sessions/workspace by default.
