@@ -30,5 +30,12 @@ if [ -n "$GOG_TOKEN_JSON" ]; then
     gog auth list 2>&1 || echo "[entrypoint] auth list failed"
 fi
 
+# Copy tools prompt to workspace so Clawd can read it
+if [ -f /app/CLAWD_TOOLS_PROMPT.md ]; then
+    mkdir -p /data/workspace
+    cp /app/CLAWD_TOOLS_PROMPT.md /data/workspace/CLAUDE.md
+    echo "[entrypoint] Copied CLAWD_TOOLS_PROMPT.md to workspace"
+fi
+
 # Start the main application
 exec node src/server.js
