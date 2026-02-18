@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "node src/server.js",
@@ -12,8 +12,9 @@
     "smoke": "node scripts/smoke.js"
   },
   "dependencies": {
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "http-proxy": "^1.18.1",
+    "puppeteer-core": "^24.36.1",
     "tar": "^7.5.4"
   }
 }

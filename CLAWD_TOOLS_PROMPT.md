@@ -508,7 +508,218 @@ echo '[
 
 ---
 
-## 11. eRank (Etsy SEO & Competitor Research)
+## 11. Trendyol (via KolayXport API)
+
+Full control of Trendyol marketplace store - products, orders, stock/price, shipment, returns, customer Q&A, and finance.
+
+### Script Location: `/app/scripts/trendyol.sh`
+
+### Product Commands:
+```bash
+# List products (default page 0, size 50)
+/app/scripts/trendyol.sh products
+/app/scripts/trendyol.sh products --approved true
+/app/scripts/trendyol.sh products --onSale true
+/app/scripts/trendyol.sh products --barcode BARCODE123
+/app/scripts/trendyol.sh products --sku STOCKCODE
+/app/scripts/trendyol.sh products --size 20 --page 2
+
+# Get specific product
+/app/scripts/trendyol.sh product BARCODE123
+
+# Create product (JSON from stdin)
+echo '{
+  "items": [{
+    "barcode": "BARCODE123",
+    "title": "Product Title with Keywords",
+    "productMainId": "GROUP-001",
+    "brandId": 1234,
+    "categoryId": 5678,
+    "quantity": 50,
+    "stockCode": "SKU-001",
+    "description": "Full product description...",
+    "currencyType": "TRY",
+    "listPrice": 199.99,
+    "salePrice": 149.99,
+    "vatRate": 10,
+    "cargoCompanyId": 17,
+    "images": [{"url": "https://example.com/image1.jpg"}],
+    "attributes": [{"attributeId": 338, "attributeValueId": 4567}]
+  }]
+}' | /app/scripts/trendyol.sh create-product
+
+# Update product
+echo '{
+  "items": [{
+    "barcode": "BARCODE123",
+    "title": "Updated Title",
+    "salePrice": 129.99,
+    "listPrice": 179.99
+  }]
+}' | /app/scripts/trendyol.sh update-product
+
+# Bulk update stock & price (max 1000 items per request)
+echo '{
+  "items": [
+    {"barcode": "BARCODE1", "quantity": 100, "salePrice": 149.99, "listPrice": 199.99},
+    {"barcode": "BARCODE2", "quantity": 50, "salePrice": 89.99, "listPrice": 119.99}
+  ]
+}' | /app/scripts/trendyol.sh update-stock-price
+
+# Check batch request status (after create/update)
+/app/scripts/trendyol.sh batch-status BATCH_REQUEST_ID
+
+# Archive a product
+/app/scripts/trendyol.sh archive BARCODE123
+```
+
+### Category & Brand Commands:
+```bash
+# List all Trendyol categories
+/app/scripts/trendyol.sh categories
+
+# Get required attributes for a category (needed for product creation)
+/app/scripts/trendyol.sh category-attributes 1234
+
+# Search brands
+/app/scripts/trendyol.sh brands --name "Belle"
+```
+
+### Order Commands:
+```bash
+# List orders
+/app/scripts/trendyol.sh orders
+/app/scripts/trendyol.sh orders --status Created
+/app/scripts/trendyol.sh orders --status Picking
+/app/scripts/trendyol.sh orders --days 7
+/app/scripts/trendyol.sh orders --size 20 --page 0
+
+# Get specific order
+/app/scripts/trendyol.sh order 10920042184
+```
+
+### Shipment Commands:
+```bash
+# Update cargo tracking number
+echo '{
+  "shipmentPackageId": 123456789,
+  "trackingNumber": "TRACKING123",
+  "cargoCompany": 17
+}' | /app/scripts/trendyol.sh update-tracking
+
+# Get shipping label
+/app/scripts/trendyol.sh shipping-label TRACKING123
+
+# List cargo companies (get IDs)
+/app/scripts/trendyol.sh cargo-companies
+```
+
+### Invoice Commands:
+```bash
+# Send invoice link for an order
+echo '{
+  "shipmentPackageId": 123456789,
+  "invoiceLink": "https://example.com/invoice.pdf",
+  "invoiceNumber": "INV-2026-001",
+  "invoiceDateTime": 1708100000000
+}' | /app/scripts/trendyol.sh send-invoice
+```
+
+### Returns/Claims Commands:
+```bash
+# List returns
+/app/scripts/trendyol.sh claims
+/app/scripts/trendyol.sh claims --days 7
+
+# Approve return
+echo '{
+  "claimId": "CLAIM123",
+  "claimLineItemIdList": ["LINE1", "LINE2"]
+}' | /app/scripts/trendyol.sh approve-claim
+```
+
+### Customer Q&A Commands:
+```bash
+# List unanswered questions
+/app/scripts/trendyol.sh questions --status WAITING_FOR_ANSWER
+
+# Answer a question
+echo '{
+  "questionId": 12345,
+  "text": "Thank you for your question! Yes, this product..."
+}' | /app/scripts/trendyol.sh answer-question
+```
+
+### Finance Commands:
+```bash
+# Get account settlements
+/app/scripts/trendyol.sh settlements --days 30
+
+# Get seller addresses
+/app/scripts/trendyol.sh addresses
+```
+
+### Order Statuses:
+| Status | Description |
+|--------|-------------|
+| `Created` | New order received |
+| `Picking` | Being prepared |
+| `Invoiced` | Invoice sent |
+| `Shipped` | In transit |
+| `Delivered` | Delivered |
+| `Cancelled` | Cancelled |
+| `UnDelivered` | Delivery failed |
+| `Returned` | Returned |
+| `UnSupplied` | Could not supply |
+
+### Cargo Companies:
+| ID | Company |
+|----|---------|
+| 4 | MNG Kargo |
+| 7 | Yurtici Kargo |
+| 10 | UPS |
+| 14 | PTT Kargo |
+| 17 | Aras Kargo |
+| 19 | Surat Kargo |
+
+### Product Creation Required Fields:
+| Field | Description | Example |
+|-------|-------------|---------|
+| barcode | Unique barcode | "8680001234567" |
+| title | Product title (SEO optimized) | "Kadin Hediye Kutusu" |
+| productMainId | Group code for variants | "GROUP-001" |
+| brandId | Brand ID (from brands search) | 1234 |
+| categoryId | Category ID (from categories) | 5678 |
+| quantity | Stock quantity | 50 |
+| stockCode | Your internal SKU | "SKU-001" |
+| listPrice | Original/crossed-out price | 199.99 |
+| salePrice | Actual sale price | 149.99 |
+| vatRate | Tax rate (10 or 20) | 10 |
+| cargoCompanyId | Cargo company | 17 |
+| images | Array of {url} objects | [{"url":"https://..."}] |
+| attributes | Required category attributes | [{"attributeId":338,"attributeValueId":4567}] |
+
+### Trendyol Sales Optimization Strategies:
+
+**When optimizing listings, focus on:**
+1. **Title SEO:** Include top search keywords, brand name, key attributes
+2. **Competitive Pricing:** Check competitor prices, use strategic listPrice/salePrice gap
+3. **Stock Management:** Keep popular items in stock, set quantity alerts
+4. **Fast Shipping:** Trendyol ranks faster shippers higher
+5. **Customer Q&A:** Answer questions quickly (affects seller score)
+6. **Returns:** Minimize returns by accurate descriptions and images
+7. **Images:** First image is critical - use lifestyle photos, white background for main
+
+### Notes:
+- Product create/update are async - use `batch-status` to check results
+- Max 1000 items per stock/price update batch
+- Trendyol API uses epoch milliseconds for dates
+- Trendyol Ads (sponsored products) is NOT available via API
+- Analytics/traffic data is NOT available via API (use Trendyol seller panel)
+
+---
+
+## 12. eRank (Etsy SEO & Competitor Research)
 
 Access eRank for Etsy keyword research, competitor analysis, and listing optimization.
 
@@ -571,7 +782,7 @@ node /app/scripts/erank.cjs analyze "https://www.etsy.com/listing/..."
 
 ---
 
-## 12. Pinterest (via Make.com)
+## 13. Pinterest (via Make.com)
 
 Drive traffic from Pinterest to Etsy/Shopify listings. Uses Make.com webhooks instead of direct Pinterest API (no approval needed).
 
@@ -680,7 +891,7 @@ echo '{"title":"Gift Box","tags":["gift","handmade"],"price":"$29.99"}' | /app/s
 
 ---
 
-## 13. Shopify (Direct Admin API)
+## 14. Shopify (Direct Admin API)
 
 Direct integration with Shopify store for product, order, customer, and inventory management.
 
@@ -837,6 +1048,26 @@ echo '{"status":"active"}' | /app/scripts/shopify.sh update-product <id>
 | Shopify customers | `/app/scripts/shopify.sh customers` |
 | Shopify sales summary | `/app/scripts/shopify.sh sales --days 7` |
 | Sync Etsy to Shopify | `/app/scripts/shopify.sh sync-from-etsy <etsy_id>` |
+| Trendyol products | `/app/scripts/trendyol.sh products` |
+| Trendyol product details | `/app/scripts/trendyol.sh product <barcode>` |
+| Trendyol create product | `echo '{...}' \| /app/scripts/trendyol.sh create-product` |
+| Trendyol update product | `echo '{...}' \| /app/scripts/trendyol.sh update-product` |
+| Trendyol stock & price | `echo '{...}' \| /app/scripts/trendyol.sh update-stock-price` |
+| Trendyol batch status | `/app/scripts/trendyol.sh batch-status <id>` |
+| Trendyol orders | `/app/scripts/trendyol.sh orders` |
+| Trendyol order by status | `/app/scripts/trendyol.sh orders --status Picking` |
+| Trendyol order details | `/app/scripts/trendyol.sh order <number>` |
+| Trendyol update tracking | `echo '{...}' \| /app/scripts/trendyol.sh update-tracking` |
+| Trendyol shipping label | `/app/scripts/trendyol.sh shipping-label <tracking>` |
+| Trendyol send invoice | `echo '{...}' \| /app/scripts/trendyol.sh send-invoice` |
+| Trendyol returns/claims | `/app/scripts/trendyol.sh claims` |
+| Trendyol approve return | `echo '{...}' \| /app/scripts/trendyol.sh approve-claim` |
+| Trendyol customer Q&A | `/app/scripts/trendyol.sh questions --status WAITING_FOR_ANSWER` |
+| Trendyol answer question | `echo '{...}' \| /app/scripts/trendyol.sh answer-question` |
+| Trendyol settlements | `/app/scripts/trendyol.sh settlements --days 30` |
+| Trendyol categories | `/app/scripts/trendyol.sh categories` |
+| Trendyol brands search | `/app/scripts/trendyol.sh brands --name "search"` |
+| Trendyol cargo companies | `/app/scripts/trendyol.sh cargo-companies` |
 
 ---
 

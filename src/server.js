@@ -579,6 +579,16 @@ app.post("/setup/api/pairing/approve", requireSetupAuth, async (req, res) => {
   return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: r.output });
 });
 
+// Execute arbitrary clawdbot commands (for config, etc.)
+app.post("/setup/api/exec", requireSetupAuth, async (req, res) => {
+  const { args } = req.body || {};
+  if (!args || !Array.isArray(args)) {
+    return res.status(400).json({ ok: false, error: "Missing args array" });
+  }
+  const r = await runCmd(CLAWDBOT_NODE, clawArgs(args.map(String)));
+  return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: r.output });
+});
+
 // WhatsApp QR code endpoint - streams terminal output with larger font
 app.get("/setup/whatsapp-qr", requireSetupAuth, async (_req, res) => {
   res.type("html").send(`<!doctype html>
@@ -732,6 +742,15 @@ app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
   }
 });
 
+app.post("/setup/api/restart-gateway", requireSetupAuth, async (_req, res) => {
+  try {
+    await restartGateway();
+    res.json({ ok: true, message: "Gateway restarted" });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 app.get("/setup/export", requireSetupAuth, async (_req, res) => {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
@@ -782,6 +801,385 @@ app.get("/setup/export", requireSetupAuth, async (_req, res) => {
   stream.pipe(res);
 });
 
+// ============ ETSY OAUTH ============
+const ETSY_API_KEY = process.env.ETSY_API_KEY || "hz8i5i4kopodt3sza52qoeuh";
+const ETSY_API_SECRET = process.env.ETSY_API_SECRET || "32ig95w1w8";
+const ETSY_REDIRECT_URI = process.env.ETSY_REDIRECT_URI || "https://clawdbot-va-production.up.railway.app/setup/etsy/callback";
+const ETSY_TOKEN_PATH = path.join(STATE_DIR, "etsy-token.json");
+
+// Store PKCE verifier temporarily (in production, use session/redis)
+let etsyPkceVerifier = null;
+
+function base64URLEncode(buffer) {
+  return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+function generatePKCE() {
+  const verifier = base64URLEncode(crypto.randomBytes(32));
+  const challenge = base64URLEncode(crypto.createHash("sha256").update(verifier).digest());
+  return { verifier, challenge };
+}
+
+function getEtsyToken() {
+  try {
+    if (fs.existsSync(ETSY_TOKEN_PATH)) {
+      return JSON.parse(fs.readFileSync(ETSY_TOKEN_PATH, "utf8"));
+    }
+  } catch {}
+  return null;
+}
+
+function saveEtsyToken(token) {
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(ETSY_TOKEN_PATH, JSON.stringify(token, null, 2), { mode: 0o600 });
+}
+
+async function refreshEtsyToken() {
+  const token = getEtsyToken();
+  if (!token?.refresh_token) return null;
+
+  try {
+    const res = await fetch("https://api.etsy.com/v3/public/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: ETSY_API_KEY,
+        refresh_token: token.refresh_token,
+      }),
+    });
+
+    if (res.ok) {
+      const newToken = await res.json();
+      newToken.obtained_at = Date.now();
+      saveEtsyToken(newToken);
+      return newToken;
+    }
+  } catch (err) {
+    console.error("[etsy] refresh failed:", err);
+  }
+  return null;
+}
+
+async function getValidEtsyToken() {
+  let token = getEtsyToken();
+  if (!token) return null;
+
+  // Check if token is expired (expires_in is in seconds, obtained_at is ms)
+  const expiresAt = (token.obtained_at || 0) + (token.expires_in || 3600) * 1000;
+  if (Date.now() > expiresAt - 60000) {
+    // Refresh if expires within 1 minute
+    token = await refreshEtsyToken();
+  }
+  return token;
+}
+
+// Etsy OAuth - Start authorization
+app.get("/setup/etsy/auth", requireSetupAuth, (_req, res) => {
+  const { verifier, challenge } = generatePKCE();
+  etsyPkceVerifier = verifier;
+
+  const state = crypto.randomBytes(16).toString("hex");
+  const scopes = "transactions_r transactions_w listings_r listings_w shops_r";
+
+  const authUrl = new URL("https://www.etsy.com/oauth/connect");
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("client_id", ETSY_API_KEY);
+  authUrl.searchParams.set("redirect_uri", ETSY_REDIRECT_URI);
+  authUrl.searchParams.set("scope", scopes);
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("code_challenge", challenge);
+  authUrl.searchParams.set("code_challenge_method", "S256");
+
+  res.redirect(authUrl.toString());
+});
+
+// Etsy OAuth - Get auth URL for external use
+app.get("/setup/api/etsy/auth-url", requireSetupAuth, (_req, res) => {
+  const { verifier, challenge } = generatePKCE();
+  etsyPkceVerifier = verifier;
+
+  // Also save verifier to file in case server restarts
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(path.join(STATE_DIR, "etsy-pkce-verifier.txt"), verifier, { mode: 0o600 });
+
+  const state = crypto.randomBytes(16).toString("hex");
+  const scopes = "transactions_r transactions_w listings_r listings_w shops_r";
+
+  const authUrl = new URL("https://www.etsy.com/oauth/connect");
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("client_id", ETSY_API_KEY);
+  authUrl.searchParams.set("redirect_uri", ETSY_REDIRECT_URI);
+  authUrl.searchParams.set("scope", scopes);
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("code_challenge", challenge);
+  authUrl.searchParams.set("code_challenge_method", "S256");
+
+  res.json({
+    authUrl: authUrl.toString(),
+    instructions: "Open this URL in a browser where you are logged into Etsy, authorize the app, then you will be redirected back."
+  });
+});
+
+// Etsy OAuth - Callback
+app.get("/setup/etsy/callback", async (req, res) => {
+  const { code, error, error_description } = req.query;
+
+  if (error) {
+    return res.status(400).send(`Etsy OAuth error: ${error} - ${error_description}`);
+  }
+
+  if (!code) {
+    return res.status(400).send("Missing authorization code");
+  }
+
+  // Try to get verifier from memory or file
+  let verifier = etsyPkceVerifier;
+  if (!verifier) {
+    try {
+      verifier = fs.readFileSync(path.join(STATE_DIR, "etsy-pkce-verifier.txt"), "utf8").trim();
+    } catch {}
+  }
+
+  if (!verifier) {
+    return res.status(400).send("PKCE verifier not found. Please restart the OAuth flow.");
+  }
+
+  try {
+    const tokenRes = await fetch("https://api.etsy.com/v3/public/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: ETSY_API_KEY,
+        redirect_uri: ETSY_REDIRECT_URI,
+        code: code,
+        code_verifier: verifier,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      return res.status(400).send(`Token exchange failed: ${errText}`);
+    }
+
+    const token = await tokenRes.json();
+    token.obtained_at = Date.now();
+    saveEtsyToken(token);
+
+    // Clean up verifier
+    etsyPkceVerifier = null;
+    try { fs.rmSync(path.join(STATE_DIR, "etsy-pkce-verifier.txt"), { force: true }); } catch {}
+
+    res.send(`
+      <!doctype html>
+      <html>
+      <head><title>Etsy Connected!</title></head>
+      <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+        <h1 style="color: green;">✅ Etsy Connected Successfully!</h1>
+        <p>Clawd can now access your Etsy orders and listings.</p>
+        <p>You can close this window.</p>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    res.status(500).send(`Error: ${err.message}`);
+  }
+});
+
+// Etsy API - Check status
+app.get("/setup/api/etsy/status", requireSetupAuth, async (_req, res) => {
+  const token = await getValidEtsyToken();
+  if (!token) {
+    return res.json({ connected: false, message: "Not connected. Use /setup/etsy/auth to connect." });
+  }
+
+  // Test the token by fetching shop info
+  try {
+    const shopRes = await fetch("https://openapi.etsy.com/v3/application/users/me", {
+      headers: {
+        "x-api-key": ETSY_API_KEY,
+        "Authorization": `Bearer ${token.access_token}`,
+      },
+    });
+
+    if (shopRes.ok) {
+      const user = await shopRes.json();
+      return res.json({
+        connected: true,
+        user_id: user.user_id,
+        shop_id: user.shop_id,
+        message: "Connected and working!"
+      });
+    } else {
+      return res.json({ connected: false, message: "Token invalid, please reconnect." });
+    }
+  } catch (err) {
+    return res.json({ connected: false, message: err.message });
+  }
+});
+
+// ============ END ETSY OAUTH ============
+
+// ============ PINTEREST OAUTH ============
+
+const PINTEREST_APP_ID = process.env.PINTEREST_APP_ID;
+const PINTEREST_APP_SECRET = process.env.PINTEREST_APP_SECRET;
+const PINTEREST_TOKEN_PATH = path.join(WORKSPACE_DIR, 'pinterest-token.json');
+
+// Pinterest OAuth callback - handles the redirect from Pinterest
+app.get("/setup/api/pinterest/callback", async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.send(`
+      <html><body style="font-family: system-ui; padding: 40px; text-align: center;">
+        <h1>Pinterest Authorization Failed</h1>
+        <p>Error: ${error}</p>
+        <p><a href="/setup">Back to Setup</a></p>
+      </body></html>
+    `);
+  }
+
+  if (!code) {
+    return res.send(`
+      <html><body style="font-family: system-ui; padding: 40px; text-align: center;">
+        <h1>Missing Authorization Code</h1>
+        <p><a href="/setup">Back to Setup</a></p>
+      </body></html>
+    `);
+  }
+
+  if (!PINTEREST_APP_ID || !PINTEREST_APP_SECRET) {
+    return res.status(500).send('Pinterest API credentials not configured');
+  }
+
+  try {
+    // Exchange code for token
+    const authHeader = Buffer.from(`${PINTEREST_APP_ID}:${PINTEREST_APP_SECRET}`).toString('base64');
+    const callbackUrl = `https://${req.get('host')}/setup/api/pinterest/callback`;
+
+    const tokenRes = await fetch('https://api.pinterest.com/v5/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: callbackUrl
+      }).toString()
+    });
+
+    const tokenData = await tokenRes.json();
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('[pinterest] Token exchange failed:', tokenData);
+      return res.send(`
+        <html><body style="font-family: system-ui; padding: 40px; text-align: center;">
+          <h1>Token Exchange Failed</h1>
+          <p>${tokenData.error_description || tokenData.error || 'Unknown error'}</p>
+          <p><a href="/setup">Back to Setup</a></p>
+        </body></html>
+      `);
+    }
+
+    // Save token
+    const token = {
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_type: tokenData.token_type,
+      expires_at: Date.now() + (tokenData.expires_in * 1000),
+      scope: tokenData.scope
+    };
+
+    await fs.promises.mkdir(path.dirname(PINTEREST_TOKEN_PATH), { recursive: true });
+    await fs.promises.writeFile(PINTEREST_TOKEN_PATH, JSON.stringify(token, null, 2));
+
+    // Get user info
+    const userRes = await fetch('https://api.pinterest.com/v5/user_account', {
+      headers: { 'Authorization': `Bearer ${token.access_token}` }
+    });
+    const userData = await userRes.json();
+
+    console.log('[pinterest] Connected:', userData.username);
+
+    return res.send(`
+      <html><body style="font-family: system-ui; padding: 40px; text-align: center;">
+        <h1>Pinterest Connected!</h1>
+        <p>Account: <strong>${userData.username || 'Connected'}</strong></p>
+        <p>Clawd can now create pins and manage boards.</p>
+        <p style="margin-top: 20px;"><a href="/setup">Back to Setup</a></p>
+      </body></html>
+    `);
+
+  } catch (err) {
+    console.error('[pinterest] OAuth error:', err);
+    return res.status(500).send(`
+      <html><body style="font-family: system-ui; padding: 40px; text-align: center;">
+        <h1>Pinterest Connection Error</h1>
+        <p>${err.message}</p>
+        <p><a href="/setup">Back to Setup</a></p>
+      </body></html>
+    `);
+  }
+});
+
+// Pinterest auth URL generator
+app.get("/setup/api/pinterest/auth-url", requireSetupAuth, (_req, res) => {
+  if (!PINTEREST_APP_ID) {
+    return res.json({ error: 'PINTEREST_APP_ID not configured' });
+  }
+
+  const callbackUrl = `https://clawdbot-va-production.up.railway.app/setup/api/pinterest/callback`;
+  const scopes = 'boards:read,boards:write,pins:read,pins:write,user_accounts:read';
+  const state = Math.random().toString(36).substring(7);
+
+  const authUrl = `https://www.pinterest.com/oauth/?` + new URLSearchParams({
+    client_id: PINTEREST_APP_ID,
+    redirect_uri: callbackUrl,
+    response_type: 'code',
+    scope: scopes,
+    state: state
+  }).toString();
+
+  res.json({ auth_url: authUrl });
+});
+
+// Pinterest status check
+app.get("/setup/api/pinterest/status", requireSetupAuth, async (_req, res) => {
+  try {
+    if (!fs.existsSync(PINTEREST_TOKEN_PATH)) {
+      return res.json({ connected: false, message: 'Not connected' });
+    }
+
+    const token = JSON.parse(await fs.promises.readFile(PINTEREST_TOKEN_PATH, 'utf8'));
+    if (!token.access_token) {
+      return res.json({ connected: false, message: 'Invalid token' });
+    }
+
+    const userRes = await fetch('https://api.pinterest.com/v5/user_account', {
+      headers: { 'Authorization': `Bearer ${token.access_token}` }
+    });
+
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      return res.json({
+        connected: true,
+        username: userData.username,
+        profile_url: `https://pinterest.com/${userData.username}`
+      });
+    } else {
+      return res.json({ connected: false, message: 'Token expired' });
+    }
+  } catch (err) {
+    return res.json({ connected: false, message: err.message });
+  }
+});
+
+// ============ END PINTEREST OAUTH ============
+
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,
@@ -810,7 +1208,7 @@ app.use(async (req, res) => {
   return proxy.web(req, res, { target: GATEWAY_TARGET });
 });
 
-const server = app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", async () => {
   console.log(`[wrapper] listening on :${PORT}`);
   console.log(`[wrapper] state dir: ${STATE_DIR}`);
   console.log(`[wrapper] workspace dir: ${WORKSPACE_DIR}`);
@@ -819,7 +1217,16 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   if (!SETUP_PASSWORD) {
     console.warn("[wrapper] WARNING: SETUP_PASSWORD is not set; /setup will error.");
   }
-  // Don't start gateway unless configured; proxy will ensure it starts.
+  // Auto-start gateway on boot if configured (for Railway - channels need to connect immediately)
+  if (isConfigured()) {
+    console.log("[wrapper] auto-starting gateway...");
+    try {
+      await ensureGatewayRunning();
+      console.log("[wrapper] gateway started successfully");
+    } catch (err) {
+      console.error("[wrapper] failed to auto-start gateway:", err);
+    }
+  }
 });
 
 server.on("upgrade", async (req, socket, head) => {
