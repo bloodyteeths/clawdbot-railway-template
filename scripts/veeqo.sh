@@ -6,6 +6,7 @@
 #   PRODUCTS:
 #     products                  - List all products
 #     products --query TERM     - Search by name/SKU
+#     products --channel ID     - Filter by channel (e.g. 633404 for eBay)
 #     product ID                - Get specific product
 #     create-product            - Create product (reads JSON from stdin)
 #     update-product ID         - Update product (reads JSON from stdin)
@@ -19,6 +20,7 @@
 #   ORDERS:
 #     orders                    - List recent orders
 #     orders --status STATUS    - Filter by status
+#     orders --channel ID       - Filter by channel (e.g. 633404 for eBay)
 #     order ID                  - Get specific order
 #     fulfill ID                - Fulfill order with tracking (reads JSON from stdin)
 #
@@ -72,6 +74,10 @@ case "$CMD" in
                 --query|-q)
                     QUERY=$(echo -n "$2" | jq -sRr @uri)
                     PARAMS="${PARAMS}&query=${QUERY}"
+                    shift 2
+                    ;;
+                --channel|-c)
+                    PARAMS="${PARAMS}&channel_id=$2"
                     shift 2
                     ;;
                 --page)
@@ -295,6 +301,10 @@ case "$CMD" in
                     PARAMS="${PARAMS}&status=$2"
                     shift 2
                     ;;
+                --channel|-c)
+                    PARAMS="${PARAMS}&channel_id=$2"
+                    shift 2
+                    ;;
                 --query|-q)
                     QUERY=$(echo -n "$2" | jq -sRr @uri)
                     PARAMS="${PARAMS}&query=${QUERY}"
@@ -512,6 +522,7 @@ case "$CMD" in
         echo "PRODUCTS:"
         echo "  products                     - List all products"
         echo "  products --query TERM        - Search by name/SKU"
+        echo "  products --channel ID        - Filter by channel"
         echo "  products --limit N           - Limit results"
         echo "  product ID                   - Get specific product details"
         echo "  create-product               - Create product (JSON from stdin)"
@@ -526,6 +537,7 @@ case "$CMD" in
         echo "ORDERS:"
         echo "  orders                       - List recent orders"
         echo "  orders --status STATUS       - Filter (awaiting_fulfillment, shipped, etc.)"
+        echo "  orders --channel ID          - Filter by channel"
         echo "  orders --query TERM          - Search orders"
         echo "  orders --since DATE          - Orders since date (YYYY-MM-DD)"
         echo "  order ID                     - Get order details"
