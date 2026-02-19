@@ -37,5 +37,24 @@ if [ -f /app/CLAWD_TOOLS_PROMPT.md ]; then
     echo "[entrypoint] Copied CLAWD_TOOLS_PROMPT.md to workspace"
 fi
 
+# Copy operational docs to workspace
+mkdir -p /data/workspace/.learnings
+for doc in SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md; do
+    [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/$doc"
+done
+[ -d "/app/.learnings" ] && cp -r /app/.learnings/* /data/workspace/.learnings/ 2>/dev/null
+echo "[entrypoint] Operational docs copied to workspace"
+
+# Create symlinks for scripts in workspace AND /usr/local/bin so any path works
+mkdir -p /data/workspace
+for script in etsy.sh trendyol.sh pinterest.sh kolayxport.sh shopify.sh backup-databases.sh security-review.sh test-scripts.sh cron-log.sh cron-health.sh; do
+    [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
+    [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/usr/local/bin/$script"
+done
+for script in erank.cjs idea-machine.cjs browser-automation.cjs shopify.cjs memory-synthesis.cjs usage-tracker.cjs urgent-alerts.cjs ecommerce-council.cjs; do
+    [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
+done
+echo "[entrypoint] Script symlinks created in workspace and PATH"
+
 # Start the main application
 exec node src/server.js

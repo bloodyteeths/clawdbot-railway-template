@@ -1,0 +1,20 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-sonnet-4-20250514",
+        "fallback": "anthropic/claude-haiku-4-5-20251001"
+      },
+      "workspace": "/data/workspace",
+      "contextTokens": 80000,
+      "contextPruning": { "mode": "cache-ttl", "ttl": "10m" },
+      "compaction": { "mode": "default" },
+      "heartbeat": { "every": "1h" },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8,
+        "model": { "primary": "anthropic/claude-haiku-4-5-20251001" }
+      }
+    }
+  }
+}

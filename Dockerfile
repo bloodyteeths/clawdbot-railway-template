@@ -94,6 +94,8 @@ COPY src ./src
 COPY scripts ./scripts
 COPY CLAWD_TOOLS_PROMPT.md ./CLAWD_TOOLS_PROMPT.md
 COPY CLAUDE.md ./CLAUDE.md
+COPY SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md ./
+COPY .learnings ./.learnings
 RUN chmod +x ./scripts/entrypoint.sh
 
 # The wrapper listens on this port.
