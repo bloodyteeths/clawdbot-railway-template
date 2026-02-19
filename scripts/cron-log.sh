@@ -22,6 +22,9 @@ CRON_LOG_DIR="/data/workspace/logs"
 CRON_LOG_FILE="${CRON_LOG_DIR}/cron-log.jsonl"
 CRON_FAILURES_FILE="${CRON_LOG_DIR}/cron-failures.jsonl"
 
+# Lock directory for idempotent execution
+CRON_LOCK_DIR="${CRON_LOG_DIR}/locks"
+
 # Internal state
 _CRON_JOB_NAME=""
 _CRON_START_EPOCH_MS=""
@@ -69,6 +72,72 @@ _cron_write_line() {
     local json="$2"
     # Use a temp file and append for atomicity
     printf '%s\n' "$json" >> "$file" 2>/dev/null
+}
+
+# Acquire a lock for a cron job (prevents double-fire on restart)
+# Usage: cron_acquire_lock "job-name"
+# Returns 0 if acquired, 1 if already running
+cron_acquire_lock() {
+    local job_name="${1:?cron_acquire_lock requires a job name}"
+    mkdir -p "$CRON_LOCK_DIR" 2>/dev/null || true
+    local lockfile="${CRON_LOCK_DIR}/${job_name}.lock"
+
+    if [ -f "$lockfile" ]; then
+        local pid
+        pid=$(cat "$lockfile" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "[cron-log] Job '$job_name' already running (PID $pid), skipping" >&2
+            return 1
+        fi
+        # Stale lock from dead process, clean up
+        rm -f "$lockfile"
+    fi
+
+    echo $$ > "$lockfile"
+    return 0
+}
+
+# Release the lock for the current job
+cron_release_lock() {
+    if [ -n "$_CRON_JOB_NAME" ]; then
+        rm -f "${CRON_LOCK_DIR}/${_CRON_JOB_NAME}.lock" 2>/dev/null
+    fi
+}
+
+# Check if a job should run based on last successful completion
+# Usage: cron_should_run "job-name" <max_seconds>
+# Returns 0 if should run (enough time elapsed), 1 if too recent
+cron_should_run() {
+    local job_name="${1:?cron_should_run requires a job name}"
+    local max_seconds="${2:?cron_should_run requires max seconds}"
+
+    if [ ! -f "$CRON_LOG_FILE" ]; then
+        return 0  # No log = never run
+    fi
+
+    # Find last successful completion timestamp
+    local last_ts
+    last_ts=$(grep "\"job\":\"${job_name}\"" "$CRON_LOG_FILE" | grep '"status":"success"' | tail -1 | sed -n 's/.*"timestamp":"\([^"]*\)".*/\1/p')
+
+    if [ -z "$last_ts" ]; then
+        return 0  # Never succeeded
+    fi
+
+    # Parse ISO timestamp to epoch
+    local last_epoch
+    last_epoch=$(date -d "$last_ts" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "${last_ts%%.*}" +%s 2>/dev/null || echo 0)
+
+    local now_epoch
+    now_epoch=$(date +%s)
+
+    local elapsed=$(( now_epoch - last_epoch ))
+
+    if [ "$elapsed" -lt "$max_seconds" ]; then
+        echo "[cron-log] Job '$job_name' last succeeded ${elapsed}s ago (threshold: ${max_seconds}s), skipping" >&2
+        return 1
+    fi
+
+    return 0
 }
 
 # Record the start of a cron job
@@ -126,7 +195,8 @@ cron_end() {
         _cron_write_line "$CRON_FAILURES_FILE" "$json"
     fi
 
-    # Reset state so the script can be reused for multiple jobs in one session
+    # Release lock and reset state
+    cron_release_lock
     _CRON_JOB_NAME=""
     _CRON_START_EPOCH_MS=""
 }

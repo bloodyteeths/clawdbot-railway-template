@@ -390,6 +390,251 @@ function compareTrend(current, history) {
 }
 
 // ---------------------------------------------------------------------------
+// Council Analysis — 4 expert perspectives on the same data
+// ---------------------------------------------------------------------------
+
+function buildCouncilAnalysis(etsyOrderStats, etsyListingStats, tyOrderStats, tyProductStats, tyClaimStats, etsyAvailable, tyAvailable) {
+  let c = '\n\u{2501}\u{2501}\u{2501} COUNCIL ANALYSIS \u{2501}\u{2501}\u{2501}\n';
+
+  // ---- SEO Expert ----
+  c += '\n\u{1F50D} SEO Expert:\n';
+  if (etsyAvailable && etsyListingStats.total > 0) {
+    const listings = etsyListingStats.topByViews.length > 0
+      ? [...etsyListingStats.topByViews]  // topByViews is already full sorted list up to 5
+      : [];
+    // All listings available through zeroViews and topByViews/topByFavorites
+    const zeroViewCount = etsyListingStats.zeroViews.length;
+
+    // 1. Flag listings with 0 views
+    if (zeroViewCount > 0) {
+      c += `${zeroViewCount} listing${zeroViewCount !== 1 ? 's' : ''} with 0 views \u{2014} not indexed by Etsy. Push via Pinterest or social.\n`;
+      // Show up to 3 examples
+      etsyListingStats.zeroViews.slice(0, 3).forEach(l => {
+        c += `  \u{2022} #${l.listing_id}: ${truncate(l.title, 50)}\n`;
+      });
+    } else {
+      c += 'All listings have views \u{2014} good indexing.\n';
+    }
+
+    // 2. Flag listings with views but 0 favorites (poor conversion)
+    // We can check all listings from topByViews (sorted desc by views)
+    // We need to look at listings that have views > 0 but num_favorers === 0
+    const allListings = etsyListingStats.topByViews; // up to 5 top by views
+    const viewsNoFavs = allListings.filter(l => (l.views || 0) > 0 && (l.num_favorers || 0) === 0);
+    if (viewsNoFavs.length > 0) {
+      viewsNoFavs.slice(0, 3).forEach(l => {
+        c += `#${l.listing_id} has ${l.views} views, 0 favorites \u{2014} title/images need work.\n`;
+      });
+    }
+
+    // 3. Identify top performers by views-to-favorites ratio
+    const withFavs = allListings.filter(l => (l.views || 0) > 0 && (l.num_favorers || 0) > 0);
+    if (withFavs.length > 0) {
+      const byRatio = [...withFavs].sort((a, b) => {
+        const ratioA = (a.num_favorers || 0) / (a.views || 1);
+        const ratioB = (b.num_favorers || 0) / (b.views || 1);
+        return ratioB - ratioA;
+      });
+      const best = byRatio[0];
+      const bestRatio = ((best.num_favorers / best.views) * 100).toFixed(1);
+      c += `Top converter: #${best.listing_id} (${bestRatio}% fav rate, ${best.views} views \u{2192} ${best.num_favorers} favs).\n`;
+    }
+
+    // 4. Recommend tag/title optimization for underperformers
+    if (zeroViewCount > 3) {
+      c += `Recommendation: ${zeroViewCount} listings need tag/title refresh \u{2014} consider long-tail keywords.\n`;
+    }
+  } else {
+    c += 'No data available.\n';
+  }
+
+  // ---- Pricing Analyst ----
+  c += '\n\u{1F4B0} Pricing Analyst:\n';
+  const hasEtsyOrderData = etsyAvailable && etsyOrderStats.weekOrders && etsyOrderStats.weekOrders.length > 0;
+  const hasTyOrderData = tyAvailable && tyOrderStats.weekOrders && tyOrderStats.weekOrders.length > 0;
+
+  if (!hasEtsyOrderData && !hasTyOrderData) {
+    c += 'No order data available for analysis.\n';
+  } else {
+    // Etsy AOV calculation
+    if (hasEtsyOrderData) {
+      const etsyAOV = etsyOrderStats.weekRevenue / etsyOrderStats.weekCount;
+      c += `Etsy AOV: $${etsyAOV.toFixed(2)} (${etsyOrderStats.weekCount} orders in 7 days).\n`;
+
+      // Flag pricing anomalies — orders significantly above/below AOV
+      const etsyOrderAmounts = etsyOrderStats.weekOrders.map(o => {
+        const amount = o.total_price?.amount || 0;
+        const divisor = o.total_price?.divisor || 100;
+        return amount / divisor;
+      }).filter(a => a > 0);
+
+      if (etsyOrderAmounts.length >= 3) {
+        const highOutliers = etsyOrderAmounts.filter(a => a > etsyAOV * 2);
+        const lowOutliers = etsyOrderAmounts.filter(a => a < etsyAOV * 0.4);
+        if (highOutliers.length > 0) {
+          c += `${highOutliers.length} high-value order${highOutliers.length !== 1 ? 's' : ''} (>2x AOV: $${Math.max(...highOutliers).toFixed(2)}) \u{2014} bundle opportunity working.\n`;
+        }
+        if (lowOutliers.length > 0) {
+          c += `${lowOutliers.length} low-value order${lowOutliers.length !== 1 ? 's' : ''} (<40% AOV) \u{2014} consider minimum order incentives.\n`;
+        }
+      }
+    }
+
+    // Trendyol AOV calculation
+    if (hasTyOrderData) {
+      const tyAOV = tyOrderStats.weekRevenue / tyOrderStats.weekCount;
+      c += `Trendyol AOV: \u{20BA}${tyAOV.toFixed(2)} (${tyOrderStats.weekCount} orders in 7 days).\n`;
+
+      // Flag pricing anomalies for Trendyol
+      const tyOrderAmounts = tyOrderStats.weekOrders.map(o => {
+        return (o.lines || []).reduce((s, l) => s + (l.amount || 0), 0);
+      }).filter(a => a > 0);
+
+      if (tyOrderAmounts.length >= 3) {
+        const highOutliers = tyOrderAmounts.filter(a => a > tyAOV * 2);
+        const lowOutliers = tyOrderAmounts.filter(a => a < tyAOV * 0.4);
+        if (highOutliers.length > 0) {
+          c += `${highOutliers.length} high-value Trendyol order${highOutliers.length !== 1 ? 's' : ''} (>2x AOV: \u{20BA}${Math.max(...highOutliers).toFixed(2)}).\n`;
+        }
+        if (lowOutliers.length > 0) {
+          c += `${lowOutliers.length} low-value Trendyol order${lowOutliers.length !== 1 ? 's' : ''} (<40% AOV).\n`;
+        }
+      }
+    }
+
+    // Cross-platform comparison
+    if (hasEtsyOrderData && hasTyOrderData) {
+      const etsyAOV = etsyOrderStats.weekRevenue / etsyOrderStats.weekCount;
+      const tyAOV = tyOrderStats.weekRevenue / tyOrderStats.weekCount;
+      c += `Cross-platform: Etsy AOV $${etsyAOV.toFixed(2)} vs Trendyol AOV \u{20BA}${tyAOV.toFixed(2)}.\n`;
+    }
+  }
+
+  // ---- Operations Manager ----
+  c += '\n\u{1F4E6} Operations:\n';
+  if (tyAvailable) {
+    // Pending shipment with overdue tracking
+    if (tyOrderStats.pendingShipment.length > 0) {
+      const overdue48h = tyOrderStats.pendingShipment.filter(o => {
+        if (!o.orderDate) return false;
+        return daysAgo(o.orderDate) > 2;
+      });
+      const overdue24h = tyOrderStats.pendingShipment.filter(o => {
+        if (!o.orderDate) return false;
+        const d = daysAgo(o.orderDate);
+        return d > 1 && d <= 2;
+      });
+
+      if (overdue48h.length > 0) {
+        c += `${overdue48h.length} Trendyol order${overdue48h.length !== 1 ? 's' : ''} overdue >48h \u{2014} ship TODAY to avoid penalties.\n`;
+      }
+      if (overdue24h.length > 0) {
+        c += `${overdue24h.length} Trendyol order${overdue24h.length !== 1 ? 's' : ''} pending 24-48h.\n`;
+      }
+      const fresh = tyOrderStats.pendingShipment.length - overdue48h.length - overdue24h.length;
+      if (fresh > 0) {
+        c += `${fresh} Trendyol order${fresh !== 1 ? 's' : ''} pending <24h.\n`;
+      }
+    } else {
+      c += 'No pending Trendyol shipments \u{2014} all caught up.\n';
+    }
+
+    // Cancelled/unsupplied (lost revenue)
+    if (tyOrderStats.cancelled.length > 0) {
+      const cancelledRevenue = tyOrderStats.cancelled.reduce((sum, o) => {
+        return sum + (o.lines || []).reduce((s, l) => s + (l.amount || 0), 0);
+      }, 0);
+      c += `${tyOrderStats.cancelled.length} cancelled/unsupplied order${tyOrderStats.cancelled.length !== 1 ? 's' : ''} \u{2014} \u{20BA}${cancelledRevenue.toFixed(2)} lost revenue.\n`;
+    } else {
+      c += '0 unsupplied orders.\n';
+    }
+
+    // Return/claim rate
+    const totalWeekOrders = tyOrderStats.weekCount;
+    if (totalWeekOrders > 0 && tyClaimStats.total >= 0) {
+      const returnRate = totalWeekOrders > 0
+        ? ((tyClaimStats.total / totalWeekOrders) * 100).toFixed(1)
+        : '0.0';
+      c += `Return rate: ${returnRate}% (${tyClaimStats.total} claim${tyClaimStats.total !== 1 ? 's' : ''} / ${totalWeekOrders} orders).\n`;
+    } else if (totalWeekOrders === 0) {
+      c += 'No orders this week to calculate return rate.\n';
+    }
+
+    // Out of stock / rejected products (SLA/inventory)
+    if (tyProductStats.outOfStock.length > 0) {
+      c += `${tyProductStats.outOfStock.length} product${tyProductStats.outOfStock.length !== 1 ? 's' : ''} on sale with 0 stock \u{2014} restock or delist.\n`;
+    }
+  } else {
+    c += 'Trendyol data unavailable.\n';
+  }
+
+  if (etsyAvailable) {
+    // Etsy doesn't have shipment status in the data we have, but we note it
+    if (etsyOrderStats.todayCount > 0) {
+      c += `${etsyOrderStats.todayCount} Etsy order${etsyOrderStats.todayCount !== 1 ? 's' : ''} today \u{2014} check shipment status in Vela.\n`;
+    }
+  }
+
+  // ---- Customer Experience ----
+  c += '\n\u{1F464} Customer Experience:\n';
+  if (tyAvailable) {
+    // Claims / returns analysis
+    if (tyClaimStats.total > 0) {
+      const claims = tyClaimStats.claims || [];
+      c += `${tyClaimStats.total} active Trendyol claim${tyClaimStats.total !== 1 ? 's' : ''} in the last 7 days.\n`;
+
+      // Try to identify patterns from claim data
+      if (claims.length > 0) {
+        // Group by reason if available
+        const reasons = {};
+        claims.forEach(cl => {
+          const reason = cl.claimReason || cl.reason || cl.returnReason || 'Unknown';
+          reasons[reason] = (reasons[reason] || 0) + 1;
+        });
+        const reasonEntries = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+        if (reasonEntries.length > 0) {
+          c += 'Claim reasons: ';
+          c += reasonEntries.map(([reason, count]) => `${reason} (${count})`).join(', ');
+          c += '.\n';
+        }
+      }
+    } else {
+      c += '0 claims in 7 days \u{2014} clean week.\n';
+    }
+
+    // Trendyol questions — check if order data contains unanswered questions info
+    // Trendyol questions are typically in a separate endpoint, but we work with what we have
+    // The claims data may contain customer questions; otherwise note data limitation
+    const tyOrders = tyOrderStats.weekOrders || [];
+    const questionsCount = tyOrders.filter(o =>
+      o.status === 'WaitingForAnswer' || o.customerQuestion
+    ).length;
+    if (questionsCount > 0) {
+      c += `${questionsCount} order${questionsCount !== 1 ? 's' : ''} awaiting response.\n`;
+    }
+
+    // Return rate as % — already computed in Ops, but CX frames it differently
+    const totalWeek = tyOrderStats.weekCount;
+    if (totalWeek > 0) {
+      const returnPct = ((tyClaimStats.total / totalWeek) * 100).toFixed(1);
+      c += `Claim rate: ${returnPct}% of orders \u{2014} ${parseFloat(returnPct) < 3 ? 'within healthy range' : 'above target, investigate root causes'}.\n`;
+    }
+  } else {
+    c += 'Trendyol data unavailable.\n';
+  }
+
+  if (etsyAvailable) {
+    // Etsy customer signals through favorites
+    const topFavs = etsyListingStats.topByFavorites || [];
+    if (topFavs.length > 0 && (topFavs[0].num_favorers || 0) > 0) {
+      c += `Most-loved Etsy listing: "${truncate(topFavs[0].title, 40)}" (${topFavs[0].num_favorers} favs) \u{2014} promote this one.\n`;
+    }
+  }
+
+  return c;
+}
+
+// ---------------------------------------------------------------------------
 // Report Formatter
 // ---------------------------------------------------------------------------
 
@@ -491,6 +736,9 @@ function buildReport(etsyOrderStats, etsyListingStats, tyOrderStats, tyProductSt
   actions.forEach((action, i) => {
     r += `${i + 1}. ${action}\n`;
   });
+
+  // ---- Council Analysis ----
+  r += buildCouncilAnalysis(etsyOrderStats, etsyListingStats, tyOrderStats, tyProductStats, tyClaimStats, etsyAvailable, tyAvailable);
 
   return r;
 }
