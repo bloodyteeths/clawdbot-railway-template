@@ -70,6 +70,7 @@ For detailed command syntax, read `/data/workspace/docs/TOOLS.md`
 | 12 | eRank | `node /app/scripts/erank.cjs` | Etsy keyword research, competitor analysis |
 | 13 | Pinterest | `/app/scripts/pinterest.sh` | Pin listings via Make.com webhook |
 | 14 | Shopify | `/app/scripts/shopify.sh` | Products, orders, inventory |
+| 15 | Veeqo/eBay | `/app/scripts/veeqo.sh` | eBay products, inventory, orders, shipping |
 
 ### Operational Scripts
 | Script | Purpose |
@@ -93,6 +94,7 @@ Skills live in `/data/workspace/skills/<name>/SKILL.md`. Each has YAML frontmatt
 | trendyol-manager | trendyol, sara tasarim, barcode, cargo | `skills/trendyol-manager/SKILL.md` |
 | facturino | facturino, invoice, fatura, e-faktura, accounting | `skills/facturino/SKILL.md` |
 | nabavkidata | nabavkidata, procurement, tender, nabavki | `skills/nabavkidata/SKILL.md` |
+| veeqo-ebay | veeqo, ebay, stock, inventory, low stock, warehouse | `skills/veeqo-ebay/SKILL.md` |
 
 Skills use `[[wikilinks]]` to reference sub-files (e.g., `[[workflows]]` → `workflows.md` in the same folder). Follow links only when the task requires deeper detail.
 
