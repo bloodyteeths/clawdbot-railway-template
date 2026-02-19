@@ -35,22 +35,27 @@ Facturino.mk is Atilla's AI-powered accounting and e-invoicing SaaS for Macedoni
 
 ## Monitoring
 
-Check Facturino status via browser automation:
-
 ```bash
-# Screenshot the landing page
-node /app/scripts/browser-automation.cjs screenshot "https://facturino.mk" "/tmp/facturino-status.png"
+# Full health + events check (both apps)
+node /app/scripts/saas-monitor.cjs
 
-# Check if the app is responding
+# Facturino only
+node /app/scripts/saas-monitor.cjs --app facturino
+
+# Quick uptime check (fallback)
 node /app/scripts/browser-automation.cjs fetch "https://facturino.mk"
 ```
+
+The saas-monitor polls `/api/v1/clawd/status` and returns: health checks (DB, Redis, queues, storage), new users, failed jobs, payment events. Real-time critical events (payment failures, system down) are also pushed via webhook to `/data/workspace/logs/saas-urgent.jsonl`.
 
 ## Common Tasks
 
 When Atilla asks about Facturino:
-- **Status check** — screenshot or fetch the URL to verify uptime
-- **Customer inquiries** — check Gmail for support emails: `gog gmail list` and filter for facturino
-- **Revenue tracking** — check the financial tracker: `node /app/scripts/financial-tracker.cjs`
+- **Status check** — `node /app/scripts/saas-monitor.cjs --app facturino`
+- **New users** — saas-monitor reports new signups in last 24h
+- **Payment issues** — saas-monitor reports failed payments, cancellations
+- **Customer inquiries** — check Gmail: `gog gmail list` and filter for facturino
+- **Revenue tracking** — `node /app/scripts/financial-tracker.cjs`
 - **Feature requests** — log to Trello board
 - **Marketing** — generate social media content, compare with competitors
 

@@ -1180,6 +1180,40 @@ app.get("/setup/api/pinterest/status", requireSetupAuth, async (_req, res) => {
 
 // ============ END PINTEREST OAUTH ============
 
+// ============ SAAS MONITORING WEBHOOKS ============
+const SAAS_MONITOR_TOKEN = process.env.SAAS_MONITOR_TOKEN?.trim();
+
+app.post("/webhooks/saas", (req, res) => {
+  const token = req.headers["x-monitor-token"];
+  if (!SAAS_MONITOR_TOKEN || token !== SAAS_MONITOR_TOKEN) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+
+  const event = req.body;
+  if (!event || !event.type) {
+    return res.status(400).json({ error: "missing event type" });
+  }
+
+  const logDir = path.join(WORKSPACE_DIR, "logs");
+  try { fs.mkdirSync(logDir, { recursive: true }); } catch {}
+
+  const logLine = JSON.stringify({ ...event, received_at: new Date().toISOString() }) + "\n";
+  fs.appendFileSync(path.join(logDir, "saas-webhooks.jsonl"), logLine);
+
+  const urgentTypes = [
+    "payment_failed", "subscription_cancelled", "bank_sync_error",
+    "scraper_failed", "high_error_rate", "queue_stuck", "app_down"
+  ];
+  if (urgentTypes.includes(event.type)) {
+    fs.appendFileSync(path.join(logDir, "saas-urgent.jsonl"), logLine);
+  }
+
+  console.log(`[webhooks/saas] ${event.app || "unknown"}/${event.type}`);
+  res.json({ ok: true });
+});
+
+// ============ END SAAS MONITORING ============
+
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,

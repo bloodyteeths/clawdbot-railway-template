@@ -53,32 +53,38 @@ Nabavkidata.com is Atilla's AI-powered public procurement data platform for Mace
 
 ## Monitoring
 
-Check Nabavkidata status:
-
 ```bash
-# Screenshot the landing page
-node /app/scripts/browser-automation.cjs screenshot "https://nabavkidata.com" "/tmp/nabavkidata-status.png"
+# Full health + events check (both apps)
+node /app/scripts/saas-monitor.cjs
 
-# Check if the app is responding
+# Nabavkidata only
+node /app/scripts/saas-monitor.cjs --app nabavkidata
+
+# Quick uptime check (fallback)
 node /app/scripts/browser-automation.cjs fetch "https://nabavkidata.com"
 ```
+
+The saas-monitor polls `/api/clawd/status` and returns: health checks (DB, API, scraper), new users, scraper status, error rates. Real-time critical events (scraper failures, high error rates) are also pushed via webhook to `/data/workspace/logs/saas-urgent.jsonl`.
 
 ## Common Tasks
 
 When Atilla asks about Nabavkidata:
-- **Status check** — screenshot or fetch the URL to verify uptime
-- **User inquiries** — check Gmail for support emails: `gog gmail list` and filter for nabavkidata
-- **Revenue/usage** — check financial tracker: `node /app/scripts/financial-tracker.cjs`
+- **Status check** — `node /app/scripts/saas-monitor.cjs --app nabavkidata`
+- **New users** — saas-monitor reports new signups in last 24h
+- **Scraper health** — saas-monitor reports scraper status (ok/stale/failed)
+- **User inquiries** — check Gmail: `gog gmail list` and filter for nabavkidata
+- **Revenue/usage** — `node /app/scripts/financial-tracker.cjs`
 - **Feature requests** — log to Trello board
 - **Data questions** — use browser automation to search the platform
 - **Marketing** — generate content about procurement intelligence, AI analysis
 
 ## Infrastructure Notes
 
-- Hosted on AWS EC2 (not Railway)
-- Separate from Clawd's Railway project
-- Monitor via browser automation or external uptime checks
-- Database contains sensitive government procurement data
+- Hosted on AWS EC2 at 18.197.185.30 (not Railway)
+- Backend: FastAPI with uvicorn (raw process, no systemd/docker)
+- Database: RDS PostgreSQL
+- Frontend: Vercel (auto-deploys on git push)
+- Monitored via saas-monitor.cjs polling + webhook push
 
 ## Competitive Advantage
 

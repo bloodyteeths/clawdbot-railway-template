@@ -78,6 +78,7 @@ For detailed command syntax, read `/data/workspace/docs/TOOLS.md`
 | `node /app/scripts/financial-tracker.cjs` | P&L across platforms |
 | `node /app/scripts/usage-tracker.cjs` | API cost tracking |
 | `node /app/scripts/urgent-alerts.cjs` | Urgent issue detection |
+| `node /app/scripts/saas-monitor.cjs` | Facturino + Nabavkidata health & events |
 | `source /app/scripts/cron-log.sh` | Cron job logging |
 
 ---
