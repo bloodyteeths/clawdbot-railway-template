@@ -48,6 +48,22 @@ for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/docs/$doc"
 done
 [ -d "/app/.learnings" ] && cp -r /app/.learnings/* /data/workspace/.learnings/ 2>/dev/null
+
+# Deploy hierarchical memory to workspace
+if [ -d "/app/memory" ]; then
+    mkdir -p /data/workspace/memory/people /data/workspace/memory/projects /data/workspace/memory/reference
+    # Only copy if target doesn't exist yet (preserve runtime updates)
+    for f in /app/memory/*.md; do
+        [ -f "$f" ] && [ ! -f "/data/workspace/memory/$(basename "$f")" ] && cp "$f" "/data/workspace/memory/"
+    done
+    for subdir in people projects reference; do
+        for f in /app/memory/$subdir/*.md; do
+            [ -f "$f" ] && [ ! -f "/data/workspace/memory/$subdir/$(basename "$f")" ] && cp "$f" "/data/workspace/memory/$subdir/"
+        done
+    done
+    echo "[entrypoint] Hierarchical memory deployed to workspace"
+fi
+
 echo "[entrypoint] Operational docs copied to workspace"
 
 # Create symlinks for scripts in workspace AND /usr/local/bin so any path works
