@@ -67,11 +67,11 @@ echo "[entrypoint] Operational docs copied to workspace"
 
 # Create symlinks for scripts in workspace AND /usr/local/bin so any path works
 mkdir -p /data/workspace
-for script in etsy.sh trendyol.sh pinterest.sh kolayxport.sh shopify.sh veeqo.sh backup-databases.sh security-review.sh test-scripts.sh cron-log.sh cron-health.sh; do
+for script in etsy.sh trendyol.sh pinterest.sh kolayxport.sh shopify.sh veeqo.sh backup-databases.sh security-review.sh test-scripts.sh cron-log.sh cron-health.sh ec2-report.sh; do
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/usr/local/bin/$script"
 done
-for script in erank.cjs idea-machine.cjs browser-automation.cjs shopify.cjs memory-synthesis.cjs usage-tracker.cjs urgent-alerts.cjs ecommerce-council.cjs financial-tracker.cjs saas-monitor.cjs; do
+for script in erank.cjs idea-machine.cjs browser-automation.cjs shopify.cjs memory-synthesis.cjs usage-tracker.cjs urgent-alerts.cjs ecommerce-council.cjs financial-tracker.cjs saas-monitor.cjs nabavkidata-monitor.cjs ec2-cron-watchdog.cjs; do
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
 done
 # Deploy skills to workspace (auto-discovered by gateway)

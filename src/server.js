@@ -1180,10 +1180,90 @@ app.get("/setup/api/pinterest/status", requireSetupAuth, async (_req, res) => {
 
 // ============ END PINTEREST OAUTH ============
 
-// ============ SAAS MONITORING WEBHOOKS ============
+// ============ ALERT SENDER ============
 const SAAS_MONITOR_TOKEN = process.env.SAAS_MONITOR_TOKEN?.trim();
 
-app.post("/webhooks/saas", (req, res) => {
+// Send an alert message to Atilla via Telegram (primary channel).
+async function sendAlert(message, opts = {}) {
+  const channels = opts.channels || ["telegram"];
+  const results = [];
+
+  for (const channel of channels) {
+    const args = ["dm", "send", "--channel", channel];
+    if (channel === "whatsapp") {
+      args.push("--to", opts.whatsappTo || "+905335010211");
+    }
+    args.push("--message", message);
+    const r = await runCmd(CLAWDBOT_NODE, clawArgs(args));
+    results.push({ channel, code: r.code, output: r.output?.substring(0, 200) });
+    console.log(`[alert] ${channel}: exit=${r.code}`);
+  }
+
+  return results;
+}
+
+// Internal endpoint for monitoring scripts to trigger alerts.
+// Auth: X-Monitor-Token header (same as webhook endpoint).
+app.post("/internal/alert", async (req, res) => {
+  const token = req.headers["x-monitor-token"];
+  if (!SAAS_MONITOR_TOKEN || token !== SAAS_MONITOR_TOKEN) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+
+  const { message, channels } = req.body || {};
+  if (!message) {
+    return res.status(400).json({ error: "missing message" });
+  }
+
+  try {
+    const results = await sendAlert(message, { channels });
+    res.json({ ok: true, results });
+  } catch (err) {
+    console.error("[/internal/alert] error:", err);
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ============ SAAS MONITORING WEBHOOKS ============
+
+const EC2_HEARTBEAT_FILE = path.join(WORKSPACE_DIR, "logs", "ec2-heartbeats.json");
+
+function updateEC2CronHeartbeat(event) {
+  let state = {};
+  try {
+    state = JSON.parse(fs.readFileSync(EC2_HEARTBEAT_FILE, "utf8"));
+  } catch {}
+
+  const cronName = event.cron_name || "unknown";
+  state[cronName] = {
+    last_seen: event.timestamp || new Date().toISOString(),
+    status: event.status || "success",
+    detail: event.detail || "",
+    received_at: new Date().toISOString()
+  };
+
+  try {
+    const logDir = path.join(WORKSPACE_DIR, "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    // Atomic write: write to temp file then rename
+    const tmpFile = EC2_HEARTBEAT_FILE + ".tmp";
+    fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2));
+    fs.renameSync(tmpFile, EC2_HEARTBEAT_FILE);
+  } catch (err) {
+    console.error("[ec2-heartbeat] write failed:", err);
+  }
+}
+
+function formatWebhookAlert(event) {
+  const appName = (event.app || "Unknown").toUpperCase();
+  const type = event.type.replace(/_/g, " ").toUpperCase();
+  const detail = event.detail || event.message || event.email || "";
+  const cronName = event.cron_name ? ` (${event.cron_name})` : "";
+  const ts = new Date().toLocaleTimeString("en-GB", { timeZone: "Europe/Belgrade", hour: "2-digit", minute: "2-digit" });
+  return `${appName} ALERT: ${type}${cronName}\n${detail}\nReceived at ${ts} CET`;
+}
+
+app.post("/webhooks/saas", async (req, res) => {
   const token = req.headers["x-monitor-token"];
   if (!SAAS_MONITOR_TOKEN || token !== SAAS_MONITOR_TOKEN) {
     return res.status(401).json({ error: "unauthorized" });
@@ -1203,10 +1283,20 @@ app.post("/webhooks/saas", (req, res) => {
   const urgentTypes = [
     "payment_failed", "subscription_cancelled", "bank_sync_error",
     "scraper_failed", "high_error_rate", "queue_stuck", "app_down",
-    "support_ticket"
+    "support_ticket", "cron_failed"
   ];
   if (urgentTypes.includes(event.type)) {
     fs.appendFileSync(path.join(logDir, "saas-urgent.jsonl"), logLine);
+    // Send alert to Telegram (fire-and-forget)
+    const alertMsg = formatWebhookAlert(event);
+    sendAlert(alertMsg, { channels: ["telegram"] }).catch(err => {
+      console.error("[webhooks/saas] alert send failed:", err);
+    });
+  }
+
+  // Track EC2 cron heartbeats (for dead man's switch)
+  if (event.type === "cron_heartbeat" || event.type === "cron_failed") {
+    updateEC2CronHeartbeat(event);
   }
 
   console.log(`[webhooks/saas] ${event.app || "unknown"}/${event.type}`);
