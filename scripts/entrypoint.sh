@@ -44,7 +44,7 @@ mkdir -p /data/workspace/.learnings /data/workspace/docs
 for doc in SOUL.md AGENTS.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/$doc"
 done
-for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md; do
+for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md TOOLS.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/docs/$doc"
 done
 [ -d "/app/.learnings" ] && cp -r /app/.learnings/* /data/workspace/.learnings/ 2>/dev/null

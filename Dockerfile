@@ -94,7 +94,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY CLAWD_TOOLS_PROMPT.md ./CLAWD_TOOLS_PROMPT.md
 COPY CLAUDE.md ./CLAUDE.md
-COPY SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md ./
+COPY SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md TOOLS.md ./
 COPY .learnings ./.learnings
 COPY memory ./memory
 RUN chmod +x ./scripts/entrypoint.sh
