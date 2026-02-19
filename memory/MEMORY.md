@@ -24,6 +24,7 @@
 | Merisa (profile, preferences) | memory/people/merisa.md | Feb 2026 |
 | Ekin (role, tasks) | memory/people/ekin.md | Feb 2026 |
 | Facturino (company, funding, roadmap) | memory/projects/facturino.md | Feb 2026 |
+| Nabavkidata (procurement SaaS) | memory/projects/nabavkidata.md | Feb 2026 |
 | BelleCoutureGifts / Etsy | memory/projects/bellecouture.md | Feb 2026 |
 | Sara Tasarim / Trendyol | memory/projects/saratasarim.md | Feb 2026 |
 | Google Sheets & Integrations | memory/reference/sheets-integrations.md | Feb 2026 |

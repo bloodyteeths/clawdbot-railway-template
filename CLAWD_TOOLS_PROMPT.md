@@ -17,6 +17,7 @@ MEMORY.md contains an index table pointing to detail files. Read them when the c
 | Merisa | `/data/workspace/memory/people/merisa.md` |
 | Ekin | `/data/workspace/memory/people/ekin.md` |
 | Facturino | `/data/workspace/memory/projects/facturino.md` |
+| Nabavkidata | `/data/workspace/memory/projects/nabavkidata.md` |
 | BelleCoutureGifts / Etsy | `/data/workspace/memory/projects/bellecouture.md` |
 | Sara Tasarim / Trendyol | `/data/workspace/memory/projects/saratasarim.md` |
 | Google Sheets / integrations | `/data/workspace/memory/reference/sheets-integrations.md` |

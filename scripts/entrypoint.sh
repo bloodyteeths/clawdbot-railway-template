@@ -49,16 +49,15 @@ for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md TOOLS.md; do
 done
 [ -d "/app/.learnings" ] && cp -r /app/.learnings/* /data/workspace/.learnings/ 2>/dev/null
 
-# Deploy hierarchical memory to workspace
+# Deploy hierarchical memory to workspace (always overwrite from repo — repo is source of truth)
 if [ -d "/app/memory" ]; then
     mkdir -p /data/workspace/memory/people /data/workspace/memory/projects /data/workspace/memory/reference
-    # Only copy if target doesn't exist yet (preserve runtime updates)
     for f in /app/memory/*.md; do
-        [ -f "$f" ] && [ ! -f "/data/workspace/memory/$(basename "$f")" ] && cp "$f" "/data/workspace/memory/"
+        [ -f "$f" ] && cp "$f" "/data/workspace/memory/"
     done
     for subdir in people projects reference; do
         for f in /app/memory/$subdir/*.md; do
-            [ -f "$f" ] && [ ! -f "/data/workspace/memory/$subdir/$(basename "$f")" ] && cp "$f" "/data/workspace/memory/$subdir/"
+            [ -f "$f" ] && cp "$f" "/data/workspace/memory/$subdir/"
         done
     done
     echo "[entrypoint] Hierarchical memory deployed to workspace"

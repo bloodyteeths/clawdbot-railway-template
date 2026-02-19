@@ -43,6 +43,19 @@
 - **Channel:** Accountant partnerships (1 accountant = 20-50 SMBs)
 - **Pricing:** EUR 19-49/mo SaaS + EUR 15/bank/mo PSD2 + 0.2-0.4% payment
 
+## Clawd Operational Capabilities
+
+For detailed commands, read skill: `skills/facturino/SKILL.md`
+
+| Capability | How |
+|-----------|-----|
+| Health check | `node /app/scripts/saas-monitor.cjs --app facturino` |
+| New user signups | saas-monitor reports new_users_24h |
+| Support tickets | Real-time webhook + `POST /api/v1/clawd/tickets/{id}/reply` |
+| Payment events | saas-monitor reports failed payments, cancellations |
+| System health | DB, Redis, queues, storage checks |
+| Revenue tracking | `node /app/scripts/financial-tracker.cjs` |
+
 ## Key Sheets
 - **Facturino Operating Plan:** 1RlTeacaZnpwprmpi3t1t_41oVEt305njKMDCTMP72UU
 - **Facturino CRM:** 1uw65zVPVtvZHrgU-WytPwUgxHhXRia3c6iRZvva81A4
