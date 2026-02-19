@@ -38,9 +38,14 @@ if [ -f /app/CLAWD_TOOLS_PROMPT.md ]; then
 fi
 
 # Copy operational docs to workspace
-mkdir -p /data/workspace/.learnings
-for doc in SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md; do
+# SOUL.md + AGENTS.md in root (read at session start)
+# PRD.md + SUBAGENT-POLICY.md + IDENTITY.md in docs/ (read on demand only — saves context)
+mkdir -p /data/workspace/.learnings /data/workspace/docs
+for doc in SOUL.md AGENTS.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/$doc"
+done
+for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md; do
+    [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/docs/$doc"
 done
 [ -d "/app/.learnings" ] && cp -r /app/.learnings/* /data/workspace/.learnings/ 2>/dev/null
 echo "[entrypoint] Operational docs copied to workspace"
