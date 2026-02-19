@@ -1202,7 +1202,8 @@ app.post("/webhooks/saas", (req, res) => {
 
   const urgentTypes = [
     "payment_failed", "subscription_cancelled", "bank_sync_error",
-    "scraper_failed", "high_error_rate", "queue_stuck", "app_down"
+    "scraper_failed", "high_error_rate", "queue_stuck", "app_down",
+    "support_ticket"
   ];
   if (urgentTypes.includes(event.type)) {
     fs.appendFileSync(path.join(logDir, "saas-urgent.jsonl"), logLine);

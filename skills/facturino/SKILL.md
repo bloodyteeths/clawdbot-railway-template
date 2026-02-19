@@ -47,13 +47,33 @@ node /app/scripts/saas-monitor.cjs --app facturino
 node /app/scripts/browser-automation.cjs fetch "https://facturino.mk"
 ```
 
-The saas-monitor polls `/api/v1/clawd/status` and returns: health checks (DB, Redis, queues, storage), new users, failed jobs, payment events. Real-time critical events (payment failures, system down) are also pushed via webhook to `/data/workspace/logs/saas-urgent.jsonl`.
+The saas-monitor polls `/api/v1/clawd/status` and returns: health checks (DB, Redis, queues, storage), new users, failed jobs, support tickets, payment events. Real-time critical events (payment failures, support tickets, system down) are also pushed via webhook to `/data/workspace/logs/saas-urgent.jsonl`.
+
+## Support Tickets
+
+Clawd can monitor and reply to user support tickets.
+
+```bash
+# Tickets show up in saas-monitor output as "support_ticket" events
+# They also push in real-time to saas-urgent.jsonl
+
+# Reply to a ticket:
+curl --json '{"body":"Your reply here"}' \
+  -H "X-Monitor-Token: $SAAS_MONITOR_TOKEN" \
+  "https://app.facturino.mk/api/v1/clawd/tickets/{ticket_id}/reply"
+```
+
+When a user submits a support ticket on Facturino:
+1. Clawd gets a real-time webhook push (`type: support_ticket`, with email + subject)
+2. The polling endpoint also includes `new_tickets_24h` in metrics
+3. Clawd can reply via `POST /api/v1/clawd/tickets/{id}/reply` with `{"body": "..."}`
 
 ## Common Tasks
 
 When Atilla asks about Facturino:
 - **Status check** — `node /app/scripts/saas-monitor.cjs --app facturino`
 - **New users** — saas-monitor reports new signups in last 24h
+- **Support tickets** — saas-monitor reports new tickets; Clawd can reply via API
 - **Payment issues** — saas-monitor reports failed payments, cancellations
 - **Customer inquiries** — check Gmail: `gog gmail list` and filter for facturino
 - **Revenue tracking** — `node /app/scripts/financial-tracker.cjs`
