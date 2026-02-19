@@ -8,6 +8,7 @@ activation: "facturino, invoice, fatura, e-faktura, accounting, bookkeeping, mac
 Facturino.mk is Atilla's AI-powered accounting and e-invoicing SaaS for Macedonia. It helps businesses manage invoicing, expenses, banking integrations, and tax compliance.
 
 **URL:** https://facturino.mk
+**API:** https://app.facturino.mk
 **Infrastructure:** Railway (same project as Clawd)
 **Built on:** InvoiceShelf (AGPL-3.0) + Next.js
 **Target:** Macedonian SMBs, freelancers, accountants

@@ -8,6 +8,7 @@ activation: "nabavkidata, procurement, tender, nabavki, javni nabavki, public pr
 Nabavkidata.com is Atilla's AI-powered public procurement data platform for Macedonia. It analyzes government tenders and procurement data to help businesses win contracts.
 
 **URL:** https://nabavkidata.com
+**API:** https://api.nabavkidata.com
 **Infrastructure:** AWS EC2
 **Target:** Macedonian businesses bidding on public contracts, procurement analysts
 

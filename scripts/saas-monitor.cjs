@@ -32,8 +32,8 @@ const LOG_FILE = path.join(LOG_DIR, 'saas-monitor.jsonl');
 // Config
 // ---------------------------------------------------------------------------
 
-const FACTURINO_URL = process.env.FACTURINO_URL || 'https://facturino.mk';
-const NABAVKIDATA_URL = process.env.NABAVKIDATA_URL || 'https://nabavkidata.com';
+const FACTURINO_URL = process.env.FACTURINO_URL || 'https://app.facturino.mk';
+const NABAVKIDATA_URL = process.env.NABAVKIDATA_URL || 'https://api.nabavkidata.com';
 const TOKEN = process.env.SAAS_MONITOR_TOKEN || '';
 
 const APPS = {
