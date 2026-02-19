@@ -81,6 +81,8 @@ For detailed command syntax, read `/data/workspace/docs/TOOLS.md`
 | `node /app/scripts/usage-tracker.cjs` | API cost tracking |
 | `node /app/scripts/urgent-alerts.cjs` | Urgent issue detection |
 | `node /app/scripts/saas-monitor.cjs` | Facturino + Nabavkidata health & events |
+| `node /app/scripts/nabavkidata-monitor.cjs` | Nabavkidata uptime monitor (every 5min, Telegram alerts) |
+| `node /app/scripts/ec2-cron-watchdog.cjs` | EC2 cron dead man's switch (every 15min) |
 | `source /app/scripts/cron-log.sh` | Cron job logging |
 
 ---

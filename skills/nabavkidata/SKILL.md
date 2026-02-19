@@ -54,25 +54,58 @@ Nabavkidata.com is Atilla's AI-powered public procurement data platform for Mace
 
 ## Monitoring
 
+### Uptime Monitor (every 5 min)
+`nabavkidata-monitor.cjs` runs every 5 minutes via cron. It checks `/health` and `/api/clawd/status`, sends **Telegram alerts** on state transitions:
+- **DOWN** — immediate alert when api.nabavkidata.com becomes unreachable
+- **STILL DOWN** — reminder every 30 minutes while down
+- **RECOVERED** — alert when service comes back online with downtime duration
+- **Degraded metrics** — alerts for scraper failures, high error rates, failed jobs (30min cooldown)
+
+```bash
+# Manual run
+node /app/scripts/nabavkidata-monitor.cjs
+
+# State file (tracks up/down transitions)
+cat /data/workspace/logs/nabavkidata-monitor-state.json
+
+# Logs
+cat /data/workspace/logs/nabavkidata-monitor.jsonl
+```
+
+### EC2 Cron Watchdog (every 15 min)
+`ec2-cron-watchdog.cjs` monitors EC2 cron jobs via dead man's switch. EC2 crons report heartbeats via webhook; watchdog alerts if a cron goes stale (default 26h for daily, 2h for hourly).
+
+```bash
+# Manual run
+node /app/scripts/ec2-cron-watchdog.cjs
+
+# See registered cron heartbeats
+cat /data/workspace/logs/ec2-heartbeats.json
+
+# Configure per-cron thresholds (optional)
+# Create /data/workspace/logs/ec2-watchdog-config.json:
+# { "scraper-daily": { "max_stale_hours": 26 } }
+```
+
+### General SaaS Monitor (on-demand)
 ```bash
 # Full health + events check (both apps)
 node /app/scripts/saas-monitor.cjs
 
 # Nabavkidata only
 node /app/scripts/saas-monitor.cjs --app nabavkidata
-
-# Quick uptime check (fallback)
-node /app/scripts/browser-automation.cjs fetch "https://nabavkidata.com"
 ```
 
-The saas-monitor polls `/api/clawd/status` and returns: health checks (DB, API, scraper), new users, scraper status, error rates. Real-time critical events (scraper failures, high error rates) are also pushed via webhook to `/data/workspace/logs/saas-urgent.jsonl`.
+The saas-monitor polls `/api/clawd/status` and returns: health checks (DB, API, scraper), new users, scraper status, error rates. Real-time critical events (scraper failures, high error rates, cron failures) are pushed via webhook and trigger Telegram alerts.
 
 ## Common Tasks
 
 When Atilla asks about Nabavkidata:
-- **Status check** — `node /app/scripts/saas-monitor.cjs --app nabavkidata`
+- **Status check** — `node /app/scripts/nabavkidata-monitor.cjs` (or `saas-monitor.cjs --app nabavkidata`)
+- **Is it down?** — check `/data/workspace/logs/nabavkidata-monitor-state.json` for current status
 - **New users** — saas-monitor reports new signups in last 24h
 - **Scraper health** — saas-monitor reports scraper status (ok/stale/failed)
+- **EC2 cron status** — `node /app/scripts/ec2-cron-watchdog.cjs` or check `ec2-heartbeats.json`
 - **User inquiries** — check Gmail: `gog gmail list` and filter for nabavkidata
 - **Revenue/usage** — `node /app/scripts/financial-tracker.cjs`
 - **Feature requests** — log to Trello board
@@ -85,7 +118,9 @@ When Atilla asks about Nabavkidata:
 - Backend: FastAPI with uvicorn (raw process, no systemd/docker)
 - Database: RDS PostgreSQL
 - Frontend: Vercel (auto-deploys on git push)
-- Monitored via saas-monitor.cjs polling + webhook push
+- Monitored via nabavkidata-monitor.cjs (every 5min) + ec2-cron-watchdog.cjs (every 15min) + saas-monitor.cjs (on-demand)
+- EC2 crons report heartbeats to Clawd via `/opt/clawd/ec2-report.sh` webhook calls
+- Alerts sent to Telegram on downtime, recovery, scraper failures, stale crons
 
 ## Competitive Advantage
 

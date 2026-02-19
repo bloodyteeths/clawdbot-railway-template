@@ -18,11 +18,13 @@ For detailed commands, read skill: `skills/nabavkidata/SKILL.md`
 
 | Capability | How |
 |-----------|-----|
-| Health check | `node /app/scripts/saas-monitor.cjs --app nabavkidata` |
+| Uptime monitoring | `node /app/scripts/nabavkidata-monitor.cjs` (runs every 5min, Telegram alerts on down/up) |
+| EC2 cron watchdog | `node /app/scripts/ec2-cron-watchdog.cjs` (runs every 15min, alerts on stale/failed crons) |
+| Health + metrics | `node /app/scripts/saas-monitor.cjs --app nabavkidata` (on-demand deep check) |
+| Current status | `cat /data/workspace/logs/nabavkidata-monitor-state.json` |
 | New user signups | saas-monitor reports new_users_24h |
 | Scraper health | saas-monitor checks scraper status (ok/stale/failed) |
 | Error rates | saas-monitor reports error_rate_1h |
-| System health | DB, API, scraper checks |
 | Revenue tracking | `node /app/scripts/financial-tracker.cjs` |
 
 ## Deployment
