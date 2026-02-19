@@ -87,6 +87,44 @@ For detailed command syntax, read `/data/workspace/docs/TOOLS.md`
 
 ---
 
+## BUSINESS CAPABILITIES (what Clawd can do per business)
+
+When asked "what can you do for X?" — answer from THIS section, not from memory files (memory has business context, not capabilities).
+
+### Facturino (SaaS monitoring + support)
+- **Health check:** `node /app/scripts/saas-monitor.cjs --app facturino` — DB, Redis, queues, storage
+- **Support tickets:** Real-time webhook alerts + reply via `POST /api/v1/clawd/tickets/{id}/reply`
+- **New users:** saas-monitor reports signups in last 24h
+- **Payment events:** saas-monitor reports failed payments, cancellations
+- **Revenue:** `node /app/scripts/financial-tracker.cjs`
+- **Customer emails:** `gog gmail list` filtered for facturino
+- Read `skills/facturino/SKILL.md` for full command reference
+
+### Nabavkidata (SaaS monitoring + uptime)
+- **Uptime monitor:** `node /app/scripts/nabavkidata-monitor.cjs` — every 5min, Telegram alerts on down/up/still-down
+- **EC2 cron watchdog:** `node /app/scripts/ec2-cron-watchdog.cjs` — every 15min, alerts on stale/failed crons
+- **Health + metrics:** `node /app/scripts/saas-monitor.cjs --app nabavkidata` — DB, API, scraper status
+- **Current status:** `cat /data/workspace/logs/nabavkidata-monitor-state.json`
+- **Revenue:** `node /app/scripts/financial-tracker.cjs`
+- Read `skills/nabavkidata/SKILL.md` for full command reference
+
+### eBay / outletemporiumus (via Veeqo)
+- **Products:** `veeqo.sh products --channel 633404` (eBay only, NOT other channels)
+- **Orders:** `veeqo.sh orders --channel 633404`
+- **Stock:** `veeqo.sh low-stock` / `veeqo.sh set-stock`
+- **Fulfill:** `echo '{"tracking_number":"..."}' | veeqo.sh fulfill <id>`
+- Read `skills/veeqo-ebay/SKILL.md` for full command reference
+
+### Etsy / BelleCoutureGifts
+- Via `etsy.sh` — listings, orders, images, stats, personalization
+- Read `skills/etsy-manager/SKILL.md` for full command reference
+
+### Trendyol / Sara Tasarim
+- Via `trendyol.sh` — products, orders, shipments, Q&A, finance
+- Read `skills/trendyol-manager/SKILL.md` for full command reference
+
+---
+
 ## SKILLS (Progressive Knowledge)
 
 Skills live in `/data/workspace/skills/<name>/SKILL.md`. Each has YAML frontmatter with `description` and `activation` keywords. Read a skill's SKILL.md when the conversation matches its activation keywords.
