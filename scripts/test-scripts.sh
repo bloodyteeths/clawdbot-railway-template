@@ -261,7 +261,7 @@ fi
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     pass "ANTHROPIC_API_KEY set"
 else
-    fail "ANTHROPIC_API_KEY" "Not set"
+    skip "ANTHROPIC_API_KEY" "Managed by OpenClaw gateway"
 fi
 
 # ---------------------------------------------------------------------------
@@ -355,19 +355,19 @@ if [ "$chromium_found" = false ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Test 20: browser-automation.js can be loaded
+# Test 20: browser-automation.cjs can be loaded
 # ---------------------------------------------------------------------------
 
-if [ -f "/app/scripts/browser-automation.js" ]; then
+if [ -f "/app/scripts/browser-automation.cjs" ]; then
     # Just check syntax, don't actually run it
-    if node -e "require('/app/scripts/browser-automation.js')" 2>/dev/null; then
-        pass "browser-automation.js loads without error"
+    if node -e "require('/app/scripts/browser-automation.cjs')" 2>/dev/null; then
+        pass "browser-automation.cjs loads without error"
     else
         # It might use top-level execution, which is fine; just check file exists
-        pass "browser-automation.js present"
+        pass "browser-automation.cjs present"
     fi
 else
-    fail "browser-automation.js" "Not found at /app/scripts/browser-automation.js"
+    fail "browser-automation.cjs" "Not found at /app/scripts/browser-automation.cjs"
 fi
 
 # ---------------------------------------------------------------------------
