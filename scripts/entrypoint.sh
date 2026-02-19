@@ -75,6 +75,19 @@ done
 for script in erank.cjs idea-machine.cjs browser-automation.cjs shopify.cjs memory-synthesis.cjs usage-tracker.cjs urgent-alerts.cjs ecommerce-council.cjs financial-tracker.cjs; do
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
 done
+# Deploy skills to workspace (auto-discovered by gateway)
+if [ -d "/app/skills" ]; then
+    mkdir -p /data/workspace/skills
+    for skill_dir in /app/skills/*/; do
+        skill_name=$(basename "$skill_dir")
+        mkdir -p "/data/workspace/skills/$skill_name"
+        for f in "$skill_dir"*.md; do
+            [ -f "$f" ] && cp "$f" "/data/workspace/skills/$skill_name/"
+        done
+    done
+    echo "[entrypoint] Skills deployed to workspace"
+fi
+
 echo "[entrypoint] Script symlinks created in workspace and PATH"
 
 # Start the main application

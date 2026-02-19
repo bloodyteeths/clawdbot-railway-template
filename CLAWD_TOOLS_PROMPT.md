@@ -82,6 +82,21 @@ For detailed command syntax, read `/data/workspace/docs/TOOLS.md`
 
 ---
 
+## SKILLS (Progressive Knowledge)
+
+Skills live in `/data/workspace/skills/<name>/SKILL.md`. Each has YAML frontmatter with `description` and `activation` keywords. Read a skill's SKILL.md when the conversation matches its activation keywords.
+
+| Skill | Activation Keywords | Path |
+|-------|-------------------|------|
+| etsy-manager | etsy, listing, bellecouture, gift box | `skills/etsy-manager/SKILL.md` |
+| trendyol-manager | trendyol, sara tasarim, barcode, cargo | `skills/trendyol-manager/SKILL.md` |
+| facturino | facturino, invoice, fatura, e-faktura, accounting | `skills/facturino/SKILL.md` |
+| nabavkidata | nabavkidata, procurement, tender, nabavki | `skills/nabavkidata/SKILL.md` |
+
+Skills use `[[wikilinks]]` to reference sub-files (e.g., `[[workflows]]` → `workflows.md` in the same folder). Follow links only when the task requires deeper detail.
+
+---
+
 ## Notes
 - Chromium runs headless in the container
 - Temp files: `/tmp/` | Persistent: `/data/workspace/`

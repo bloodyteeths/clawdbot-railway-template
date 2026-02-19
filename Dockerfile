@@ -97,6 +97,7 @@ COPY CLAUDE.md ./CLAUDE.md
 COPY SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md TOOLS.md ./
 COPY .learnings ./.learnings
 COPY memory ./memory
+COPY skills ./skills
 RUN chmod +x ./scripts/entrypoint.sh
 
 # The wrapper listens on this port.
