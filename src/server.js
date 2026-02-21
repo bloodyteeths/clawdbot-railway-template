@@ -1305,6 +1305,89 @@ app.post("/webhooks/saas", async (req, res) => {
 
 // ============ END SAAS MONITORING ============
 
+// ============ EMERGENCY SESSION RESET ============
+// Works even when the bot agent is completely stuck/frozen.
+// Two access methods:
+//   1. POST /api/emergency-reset  (Basic auth with SETUP_PASSWORD)
+//   2. GET  /api/emergency-reset?token=<SETUP_PASSWORD>  (bookmarkable on phone)
+
+function emergencyAuth(req, res, next) {
+  // Method 1: query param token (for phone bookmarks)
+  if (req.query.token && SETUP_PASSWORD && req.query.token === SETUP_PASSWORD) {
+    return next();
+  }
+  // Method 2: Basic auth (same as setup endpoints)
+  return requireSetupAuth(req, res, next);
+}
+
+async function doEmergencyReset() {
+  const sessionsDir = path.join(STATE_DIR, "agents", "main", "sessions");
+  const results = { deleted: [], reset: false, error: null };
+
+  // Step 1: Find and delete oversized session files (>500KB = likely stuck)
+  try {
+    if (fs.existsSync(sessionsDir)) {
+      const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
+      for (const file of files) {
+        const filePath = path.join(sessionsDir, file);
+        const stat = fs.statSync(filePath);
+        const sizeKB = Math.round(stat.size / 1024);
+        if (stat.size > 512 * 1024) {
+          fs.rmSync(filePath, { force: true });
+          results.deleted.push({ file, sizeKB });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[emergency-reset] session cleanup error:", err);
+  }
+
+  // Step 2: Run moltbot sessions reset
+  try {
+    const r = await runCmd(CLAWDBOT_NODE, clawArgs(["sessions", "reset"]));
+    results.reset = r.code === 0;
+    results.resetOutput = r.output?.substring(0, 500);
+  } catch (err) {
+    results.error = String(err);
+  }
+
+  // Step 3: Send Telegram confirmation
+  const deletedInfo = results.deleted.length > 0
+    ? `Deleted ${results.deleted.length} oversized session(s): ${results.deleted.map(d => `${d.file} (${d.sizeKB}KB)`).join(", ")}`
+    : "No oversized sessions found";
+  const alertMsg = `EMERGENCY RESET completed\n${deletedInfo}\nSession reset: ${results.reset ? "OK" : "failed"}`;
+  sendAlert(alertMsg, { channels: ["telegram"] }).catch(() => {});
+
+  return results;
+}
+
+app.all("/api/emergency-reset", emergencyAuth, async (_req, res) => {
+  try {
+    const results = await doEmergencyReset();
+    // If accessed via browser (GET), show a simple HTML page
+    if (_req.method === "GET") {
+      const status = results.reset ? "Reset successful" : "Reset had issues";
+      const deleted = results.deleted.length > 0
+        ? results.deleted.map(d => `<li>${d.file} (${d.sizeKB}KB)</li>`).join("")
+        : "<li>None (all sessions were normal size)</li>";
+      return res.type("html").send(`<!doctype html>
+<html><body style="font-family:system-ui;padding:40px;max-width:600px;margin:0 auto">
+<h1>${results.reset ? "&#9989;" : "&#9888;&#65039;"} Emergency Reset</h1>
+<h2>${status}</h2>
+<h3>Deleted oversized sessions:</h3><ul>${deleted}</ul>
+<p>A confirmation was sent to Telegram.</p>
+<p><a href="javascript:history.back()">Back</a></p>
+</body></html>`);
+    }
+    return res.json({ ok: true, ...results });
+  } catch (err) {
+    console.error("[emergency-reset] error:", err);
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ============ END EMERGENCY RESET ============
+
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,
