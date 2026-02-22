@@ -1388,6 +1388,55 @@ app.all("/api/emergency-reset", emergencyAuth, async (_req, res) => {
 
 // ============ END EMERGENCY RESET ============
 
+// ============ SESSION SIZE WATCHDOG ============
+// Runs every 2 minutes. If any session file exceeds the threshold,
+// auto-deletes it and alerts via Telegram. This prevents the compaction
+// death loop where context grows past 170K+ and compaction itself fails.
+
+const SESSION_MAX_SIZE_KB = 400; // ~100K tokens — well under the 200K API limit
+const WATCHDOG_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
+async function sessionWatchdog() {
+  const sessionsDir = path.join(STATE_DIR, "agents", "main", "sessions");
+  if (!fs.existsSync(sessionsDir)) return;
+
+  try {
+    const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
+    const deleted = [];
+
+    for (const file of files) {
+      const filePath = path.join(sessionsDir, file);
+      try {
+        const stat = fs.statSync(filePath);
+        const sizeKB = Math.round(stat.size / 1024);
+        if (sizeKB > SESSION_MAX_SIZE_KB) {
+          fs.rmSync(filePath, { force: true });
+          deleted.push({ file, sizeKB });
+          console.log(`[watchdog] Auto-deleted oversized session: ${file} (${sizeKB}KB)`);
+        }
+      } catch {}
+    }
+
+    if (deleted.length > 0) {
+      const msg = `SESSION WATCHDOG: Auto-reset ${deleted.length} oversized session(s)\n` +
+        deleted.map(d => `• ${d.file.substring(0, 8)}... (${d.sizeKB}KB)`).join("\n") +
+        "\nBot will start fresh on next message.";
+      sendAlert(msg, { channels: ["telegram"] }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("[watchdog] error:", err);
+  }
+}
+
+// Start watchdog after server is up
+setTimeout(() => {
+  sessionWatchdog(); // run once immediately
+  setInterval(sessionWatchdog, WATCHDOG_INTERVAL_MS);
+  console.log(`[watchdog] Session size watchdog started (threshold: ${SESSION_MAX_SIZE_KB}KB, interval: ${WATCHDOG_INTERVAL_MS / 1000}s)`);
+}, 5000);
+
+// ============ END SESSION WATCHDOG ============
+
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,
