@@ -1324,11 +1324,11 @@ async function doEmergencyReset() {
   const sessionsDir = path.join(STATE_DIR, "agents", "main", "sessions");
   const results = { deleted: [], reset: false, error: null };
 
-  // Step 1: Find and delete oversized session files (>500KB = likely stuck)
+  // Step 1: Find and delete oversized session files + stale locks
   try {
     if (fs.existsSync(sessionsDir)) {
-      const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
-      for (const file of files) {
+      const allFiles = fs.readdirSync(sessionsDir);
+      for (const file of allFiles.filter(f => f.endsWith(".jsonl"))) {
         const filePath = path.join(sessionsDir, file);
         const stat = fs.statSync(filePath);
         const sizeKB = Math.round(stat.size / 1024);
@@ -1336,6 +1336,10 @@ async function doEmergencyReset() {
           fs.rmSync(filePath, { force: true });
           results.deleted.push({ file, sizeKB });
         }
+      }
+      // Remove all lock files
+      for (const file of allFiles.filter(f => f.endsWith(".lock"))) {
+        fs.rmSync(path.join(sessionsDir, file), { force: true });
       }
     }
   } catch (err) {
@@ -1401,10 +1405,11 @@ async function sessionWatchdog() {
   if (!fs.existsSync(sessionsDir)) return;
 
   try {
-    const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
+    const allFiles = fs.readdirSync(sessionsDir);
     const deleted = [];
 
-    for (const file of files) {
+    // Clean up oversized session files
+    for (const file of allFiles.filter(f => f.endsWith(".jsonl"))) {
       const filePath = path.join(sessionsDir, file);
       try {
         const stat = fs.statSync(filePath);
@@ -1413,6 +1418,19 @@ async function sessionWatchdog() {
           fs.rmSync(filePath, { force: true });
           deleted.push({ file, sizeKB });
           console.log(`[watchdog] Auto-deleted oversized session: ${file} (${sizeKB}KB)`);
+        }
+      } catch {}
+    }
+
+    // Clean up stale lock files (older than 2 minutes)
+    const staleLockAge = 2 * 60 * 1000;
+    for (const file of allFiles.filter(f => f.endsWith(".lock"))) {
+      const filePath = path.join(sessionsDir, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (Date.now() - stat.mtimeMs > staleLockAge) {
+          fs.rmSync(filePath, { force: true });
+          console.log(`[watchdog] Removed stale lock: ${file}`);
         }
       } catch {}
     }

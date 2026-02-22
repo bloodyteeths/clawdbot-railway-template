@@ -5,7 +5,7 @@
         "primary": "anthropic/claude-sonnet-4-20250514"
       },
       "workspace": "/data/workspace",
-      "contextTokens": 24000,
+      "contextTokens": 32000,
       "contextPruning": { "mode": "cache-ttl", "ttl": "5m" },
       "compaction": {
         "mode": "default"
