@@ -91,17 +91,21 @@ if [ -d "/app/skills" ]; then
     echo "[entrypoint] Skills deployed to workspace"
 fi
 
-# Deploy hooks to workspace (auto-discovered by gateway)
+# Deploy and install hooks (must use `clawdbot hooks install` for discovery)
 if [ -d "/app/hooks" ]; then
     mkdir -p /data/workspace/hooks
     for hook_dir in /app/hooks/*/; do
         hook_name=$(basename "$hook_dir")
+        # Copy to workspace for reference
         mkdir -p "/data/workspace/hooks/$hook_name"
         for f in "$hook_dir"*; do
             [ -f "$f" ] && cp "$f" "/data/workspace/hooks/$hook_name/"
         done
+        # Install via clawdbot CLI (copies to /data/.clawdbot/hooks/)
+        clawdbot hooks install "/data/workspace/hooks/$hook_name" 2>&1 || echo "[entrypoint] hook install failed: $hook_name"
+        clawdbot hooks enable "$hook_name" 2>&1 || echo "[entrypoint] hook enable failed: $hook_name"
     done
-    echo "[entrypoint] Hooks deployed to workspace"
+    echo "[entrypoint] Hooks deployed and installed"
 fi
 
 echo "[entrypoint] Script symlinks created in workspace and PATH"

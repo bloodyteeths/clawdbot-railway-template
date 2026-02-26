@@ -143,84 +143,111 @@ function buildTranscript(groups) {
     return parts.join('\n');
 }
 
-// ── Anthropic API ──────────────────────────────────────────────────────────────
+// ── Summarize via OpenClaw Gateway ─────────────────────────────────────────────
+
+function getGatewayToken() {
+    const tokenPath = '/data/.clawdbot/gateway.token';
+    if (fs.existsSync(tokenPath)) return fs.readFileSync(tokenPath, 'utf8').trim();
+    throw new Error('Gateway token not found at ' + tokenPath);
+}
 
 async function summarize(transcript, dateStr) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+    const gwToken = getGatewayToken();
 
-    const systemPrompt = `You are a conversation summarizer for a personal AI assistant called Clawd.
-Your job is to create structured summaries of daily conversations between Clawd and its users (Atilla and Merisa).
+    const prompt = `You are a conversation summarizer. Create a structured summary of these conversations from ${dateStr}.
 
-Output a Markdown document with these sections:
-
+Output Markdown with these sections:
 ## Chat Summary - ${dateStr}
-
-### Conversations
-For each distinct conversation thread:
-- **Participants**: Who was involved
-- **Channel**: WhatsApp/Telegram/Slack
-- **Time**: Start-end timestamps
-- **Topics discussed**: Brief bullet list
-- **Language**: Primary language used (Turkish/Macedonian/English)
-
+### Conversations (topics, participants, channel, language used)
 ### Key Decisions Made
-- Bullet points of any decisions, approvals, or commitments
-
 ### Action Items & Tasks
-- Tasks assigned or mentioned (with who and deadline if stated)
-
-### Important Facts Learned
-- New business data, contacts, preferences, or personal details mentioned
-- Prices, deadlines, metrics worth remembering
-
+### Important Facts Learned (business data, contacts, preferences, deadlines)
 ### Follow-ups Needed
-- Anything left unresolved or promised for later
+### Notable Exchanges (quotes user might reference later)
 
-### Notable Exchanges
-- Key quotes or exchanges the user might reference later (with context)
+Rules: Be concise but specific. Use dates, numbers, names. Note language (Turkish/Macedonian/English). Skip mundane exchanges. Focus on what Clawd should remember.
 
-Rules:
-- Be concise but specific. Use dates, numbers, names.
-- Preserve language context (note if conversations were in Turkish, Bosnian, Macedonian, etc.)
-- Focus on information that would help Clawd remember context in future sessions
-- If a conversation is mundane/transient (weather check, greeting), summarize in one line
-- If no meaningful conversations occurred, say so briefly
-- Include any emotional context (was the user frustrated, happy, stressed?)`;
+Here are the conversations:
+
+${transcript}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), 120000);
 
     try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch('http://127.0.0.1:18789/hooks/agent', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
+                'x-openclaw-token': gwToken
             },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 4096,
-                system: systemPrompt,
-                messages: [{
-                    role: 'user',
-                    content: `Here are today's conversations (${dateStr}):\n\n${transcript}`
-                }]
+                message: prompt,
+                sessionKey: `hook:chat-summary-${dateStr}`,
+                model: 'claude-sonnet-4-20250514'
             }),
             signal: controller.signal
         });
 
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+            throw new Error(`Gateway error ${response.status}: ${errText}`);
         }
 
         const result = await response.json();
-        return result.content[0].text;
+
+        if (result.runId || result.ok) {
+            return await pollForResult(`hook:chat-summary-${dateStr}`);
+        }
+        if (result.response) return result.response;
+
+        throw new Error('Unexpected gateway response: ' + JSON.stringify(result).slice(0, 200));
     } finally {
         clearTimeout(timeout);
     }
+}
+
+async function pollForResult(sessionKey) {
+    const maxWait = 120000;
+    const pollInterval = 5000;
+    const start = Date.now();
+    const sessionsJson = '/data/.clawdbot/agents/main/sessions/sessions.json';
+    const sessionsDir = '/data/.clawdbot/agents/main/sessions';
+
+    while (Date.now() - start < maxWait) {
+        await new Promise(r => setTimeout(r, pollInterval));
+
+        try {
+            const store = JSON.parse(fs.readFileSync(sessionsJson, 'utf8'));
+            const fullKey = `agent:main:${sessionKey}`;
+            const entry = store[fullKey];
+            if (!entry || !entry.sessionId) continue;
+
+            const sessionFile = path.join(sessionsDir, `${entry.sessionId}.jsonl`);
+            if (!fs.existsSync(sessionFile)) continue;
+
+            const lines = fs.readFileSync(sessionFile, 'utf8').trim().split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try {
+                    const d = JSON.parse(lines[i]);
+                    if (d.type === 'message' && d.message?.role === 'assistant') {
+                        let text = '';
+                        const content = d.message.content;
+                        if (Array.isArray(content)) {
+                            for (const block of content) {
+                                if (block.type === 'text') text += block.text;
+                            }
+                        } else if (typeof content === 'string') {
+                            text = content;
+                        }
+                        if (text && text.length > 50) return text;
+                    }
+                } catch {}
+            }
+        } catch {}
+    }
+
+    throw new Error(`Timed out waiting for summary (${sessionKey})`);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
