@@ -1405,8 +1405,8 @@ app.all("/api/emergency-reset", emergencyAuth, async (_req, res) => {
 // auto-deletes it and alerts via Telegram. This prevents the compaction
 // death loop where context grows past 170K+ and compaction itself fails.
 
-const SESSION_MAX_SIZE_KB = 400; // ~100K tokens — well under the 200K API limit
-const WATCHDOG_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const SESSION_MAX_SIZE_KB = 1200; // ~300K tokens — headroom above 128K contextTokens for compaction
+const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 async function sessionWatchdog() {
   const sessionsDir = path.join(STATE_DIR, "agents", "main", "sessions");
@@ -1462,6 +1462,53 @@ setTimeout(() => {
 }, 5000);
 
 // ============ END SESSION WATCHDOG ============
+
+// ============ DAILY CHAT HISTORY SUMMARIZER ============
+// Runs daily at ~23:50 CET (Skopje timezone) to summarize the day's conversations.
+
+function scheduleDailySummarizer() {
+  function msUntilNextRun() {
+    const now = new Date();
+    const cetNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Belgrade" }));
+    const target = new Date(cetNow);
+    target.setHours(23, 50, 0, 0);
+
+    let diff = target.getTime() - cetNow.getTime();
+    if (diff <= 0) {
+      // Already past 23:50 today, schedule for tomorrow
+      diff += 24 * 60 * 60 * 1000;
+    }
+    return diff;
+  }
+
+  function runSummarizer() {
+    console.log("[chat-summary] Starting daily chat history summarization...");
+    const proc = childProcess.spawn("node", ["/app/scripts/chat-history-export.cjs"], {
+      stdio: "inherit",
+      env: process.env
+    });
+    proc.on("close", (code) => {
+      console.log(`[chat-summary] Finished with exit code ${code}`);
+      const nextMs = msUntilNextRun();
+      console.log(`[chat-summary] Next run in ${Math.round(nextMs / 60000)} minutes`);
+      setTimeout(runSummarizer, nextMs);
+    });
+    proc.on("error", (err) => {
+      console.error("[chat-summary] spawn error:", err);
+      setTimeout(runSummarizer, 60 * 60 * 1000);
+    });
+  }
+
+  const initialDelay = msUntilNextRun();
+  console.log(`[chat-summary] Daily summarizer scheduled, first run in ${Math.round(initialDelay / 60000)} minutes`);
+  setTimeout(runSummarizer, initialDelay);
+}
+
+setTimeout(() => {
+  scheduleDailySummarizer();
+}, 6000);
+
+// ============ END DAILY CHAT HISTORY SUMMARIZER ============
 
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({

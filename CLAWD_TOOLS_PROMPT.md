@@ -22,11 +22,77 @@ MEMORY.md contains an index table pointing to detail files. Read them when the c
 | Sara Tasarim / Trendyol | `/data/workspace/memory/projects/saratasarim.md` |
 | Google Sheets / integrations | `/data/workspace/memory/reference/sheets-integrations.md` |
 | Lessons learned | `/data/workspace/memory/reference/lessons.md` |
+| Past conversations | `/data/workspace/memory/chat-summaries/YYYY-MM-DD.md` |
 
 ### Memory Rules
 - Do NOT read all files at once. Max 3 drill-downs at session start.
-- Update memory when you learn something new.
-- Before compaction: save important new facts to the relevant memory file.
+- Before answering a question about a person, project, or past decision — **always drill down first.**
+
+---
+
+## WRITE-THROUGH MEMORY PROTOCOL (CRITICAL)
+
+Your context window will compact. Treat memory files as your **permanent brain**. Context is temporary — files are forever.
+
+### When to Write (after EVERY meaningful exchange)
+Save to the relevant memory file **immediately** when ANY of these happen:
+- A **decision** is made ("let's use X", "don't do Y", "price is $Z")
+- A **task** is assigned or completed
+- A **new fact** is learned (contact info, preference, business metric, deadline)
+- A **problem** is discussed and resolved (save the solution)
+- A **request** is made that might be referenced later
+- **Status changes** (order shipped, listing updated, meeting scheduled)
+- **Anything the user would expect you to remember next time they ask**
+
+### Where to Write
+| Content type | Write to |
+|---|---|
+| About Atilla | `memory/people/atilla.md` |
+| About Merisa | `memory/people/merisa.md` |
+| About Ekin | `memory/people/ekin.md` |
+| About any new person | Create `memory/people/<name>.md` + add to MEMORY.md index |
+| Facturino business | `memory/projects/facturino.md` |
+| Nabavkidata business | `memory/projects/nabavkidata.md` |
+| Etsy / BelleCouture | `memory/projects/bellecouture.md` |
+| Trendyol / Sara Tasarim | `memory/projects/saratasarim.md` |
+| Any new project | Create `memory/projects/<name>.md` + add to MEMORY.md index |
+| Mistakes / workarounds | `memory/reference/lessons.md` |
+| Integration configs | `memory/reference/sheets-integrations.md` |
+| Active tasks & deadlines | `memory/tasks.md` |
+| Daily session summary | `memory/daily/<YYYY-MM-DD>.md` |
+| Past conversation reference | `memory/chat-summaries/<YYYY-MM-DD>.md` |
+
+### How to Write
+- **Append, don't rewrite.** Add dated entries under the relevant section heading.
+- **Format:** `- [YYYY-MM-DD] <fact>` so entries are timestamped.
+- **Be specific.** Not "discussed pricing" but "Set BelleCouture Gift Box price to $34.99 (Merisa approved)."
+- **Remove outdated info.** If a fact is superseded, delete the old entry.
+- **Update MEMORY.md index** when you create a new file or a new Active Context item.
+
+### When to Read
+- **Before answering** any question about a person/project/past event → drill down first
+- **At session start** → read MEMORY.md to see Active Context and decide which files to drill
+- **When user says "remember when..."** → search `memory/chat-summaries/` directory first (recent 7 days), then other memory files. Don't guess.
+- **When user references a past conversation** ("we discussed X", "what did I say about...") → list chat-summaries dir and read relevant dates
+
+### Session Summary (end of significant conversations)
+When a session had meaningful exchanges, write a summary to `memory/daily/<YYYY-MM-DD>.md`:
+```
+## Session Summary - <time>
+- Participants: <who>
+- Topics: <what was discussed>
+- Decisions: <what was decided>
+- Tasks: <what was assigned>
+- Follow-ups: <what needs to happen next>
+```
+
+### Pre-Compaction Flush
+When you sense context is getting long or system triggers compaction:
+1. Scan the conversation for anything NOT yet saved to memory files
+2. Write all unsaved facts to the appropriate files
+3. Write a session summary to daily notes
+
+**RULE: If it's important enough to remember, it's important enough to write to a file. Never rely on context alone.**
 
 ---
 

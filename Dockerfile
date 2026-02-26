@@ -98,6 +98,7 @@ COPY SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md TOOLS.md ./
 COPY .learnings ./.learnings
 COPY memory ./memory
 COPY skills ./skills
+COPY hooks ./hooks
 RUN chmod +x ./scripts/entrypoint.sh
 
 # The wrapper listens on this port.

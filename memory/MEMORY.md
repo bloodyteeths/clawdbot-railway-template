@@ -29,6 +29,9 @@
 | Sara Tasarim / Trendyol | memory/projects/saratasarim.md | Feb 2026 |
 | Google Sheets & Integrations | memory/reference/sheets-integrations.md | Feb 2026 |
 | Lessons Learned | memory/reference/lessons.md | Feb 2026 |
+| Active Tasks & Deadlines | memory/tasks.md | Feb 2026 |
+| Daily Session Notes | memory/daily/YYYY-MM-DD.md | ongoing |
+| Chat Summaries (daily conversation logs) | memory/chat-summaries/YYYY-MM-DD.md | ongoing |
 
 ## Active Context (rotate as priorities change)
 - EIC Accelerator deadline: March 4, 2026
@@ -39,4 +42,6 @@
 - **Always drill** before answering questions about a person or project
 - **Never assume** — if unsure, read the file first
 - Maximum 5 drill-downs at session start
-- Update the index when you update a detail file
+- **Update this index** when you create a new file or update an existing one
+- **Past conversations**: When user says "we talked about X", "remember when...", or "what did I say about..." → search `memory/chat-summaries/` files (check recent 7 days first, then expand)
+- **Write-through:** After every meaningful exchange, save facts to the appropriate file IMMEDIATELY

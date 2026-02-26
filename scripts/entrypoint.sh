@@ -49,17 +49,21 @@ for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md TOOLS.md; do
 done
 [ -d "/app/.learnings" ] && cp -r /app/.learnings/* /data/workspace/.learnings/ 2>/dev/null
 
-# Deploy hierarchical memory to workspace (always overwrite from repo — repo is source of truth)
+# Deploy hierarchical memory to workspace
+# IMPORTANT: Repo overwrites structural files (MEMORY.md, people/, projects/, reference/)
+# but PRESERVES runtime-written files (daily/, tasks.md if already exists with content)
 if [ -d "/app/memory" ]; then
-    mkdir -p /data/workspace/memory/people /data/workspace/memory/projects /data/workspace/memory/reference
-    for f in /app/memory/*.md; do
-        [ -f "$f" ] && cp "$f" "/data/workspace/memory/"
-    done
+    mkdir -p /data/workspace/memory/people /data/workspace/memory/projects /data/workspace/memory/reference /data/workspace/memory/daily /data/workspace/memory/chat-logs /data/workspace/memory/chat-summaries
+    # Always overwrite the index and structural files from repo
+    [ -f "/app/memory/MEMORY.md" ] && cp "/app/memory/MEMORY.md" "/data/workspace/memory/MEMORY.md"
     for subdir in people projects reference; do
         for f in /app/memory/$subdir/*.md; do
             [ -f "$f" ] && cp "$f" "/data/workspace/memory/$subdir/"
         done
     done
+    # tasks.md: only copy from repo if it doesn't exist yet (preserve runtime data)
+    [ ! -f "/data/workspace/memory/tasks.md" ] && [ -f "/app/memory/tasks.md" ] && cp "/app/memory/tasks.md" "/data/workspace/memory/tasks.md"
+    # daily/ notes: never overwrite (these are runtime-written by the bot)
     echo "[entrypoint] Hierarchical memory deployed to workspace"
 fi
 
@@ -71,7 +75,7 @@ for script in etsy.sh trendyol.sh pinterest.sh kolayxport.sh shopify.sh veeqo.sh
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/usr/local/bin/$script"
 done
-for script in erank.cjs idea-machine.cjs browser-automation.cjs shopify.cjs memory-synthesis.cjs usage-tracker.cjs urgent-alerts.cjs ecommerce-council.cjs financial-tracker.cjs saas-monitor.cjs nabavkidata-monitor.cjs ec2-cron-watchdog.cjs; do
+for script in erank.cjs idea-machine.cjs browser-automation.cjs shopify.cjs memory-synthesis.cjs usage-tracker.cjs urgent-alerts.cjs ecommerce-council.cjs financial-tracker.cjs saas-monitor.cjs nabavkidata-monitor.cjs ec2-cron-watchdog.cjs chat-history-export.cjs; do
     [ -f "/app/scripts/$script" ] && ln -sf "/app/scripts/$script" "/data/workspace/$script"
 done
 # Deploy skills to workspace (auto-discovered by gateway)
@@ -85,6 +89,19 @@ if [ -d "/app/skills" ]; then
         done
     done
     echo "[entrypoint] Skills deployed to workspace"
+fi
+
+# Deploy hooks to workspace (auto-discovered by gateway)
+if [ -d "/app/hooks" ]; then
+    mkdir -p /data/workspace/hooks
+    for hook_dir in /app/hooks/*/; do
+        hook_name=$(basename "$hook_dir")
+        mkdir -p "/data/workspace/hooks/$hook_name"
+        for f in "$hook_dir"*; do
+            [ -f "$f" ] && cp "$f" "/data/workspace/hooks/$hook_name/"
+        done
+    done
+    echo "[entrypoint] Hooks deployed to workspace"
 fi
 
 echo "[entrypoint] Script symlinks created in workspace and PATH"
