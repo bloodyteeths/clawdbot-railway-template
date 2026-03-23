@@ -1943,6 +1943,40 @@ Content-Type: application/json
 
 ---
 
+## Image Upload
+
+eBay listings require publicly accessible image URLs. When users send photos via WhatsApp/Telegram, upload them to KolayXport's Supabase storage first, then use the returned URL in `imageUrls`.
+
+### Upload Image
+
+```
+POST /api/clawd/upload-image?userId={USER_ID}
+Header: x-api-key: {API_KEY}
+Content-Type: multipart/form-data
+Body: form field "file" with the image binary
+```
+
+**Or via CLI:** `ebay.sh upload-image /path/to/photo.jpg`
+
+**Response:**
+```json
+{
+  "url": "https://[project].supabase.co/storage/v1/object/public/listing-images/[userId]/[timestamp]-[hash].jpg",
+  "path": "[userId]/[timestamp]-[hash].jpg"
+}
+```
+
+**Limits:** 12MB max. Supported: JPEG, PNG, GIF, WebP, TIFF.
+
+**Image Workflow for eBay Listings:**
+1. User sends photo(s) via WhatsApp/Telegram
+2. Save each photo to a temp file
+3. Upload each via `ebay.sh upload-image /tmp/photo.jpg` (or POST to `/api/clawd/upload-image`)
+4. Collect the returned URLs
+5. Pass URLs array as `imageUrls` when creating/updating the listing
+
+---
+
 ## Workflows
 
 ### Create a New eBay Listing (Simple)

@@ -11,15 +11,10 @@ set -e
 
 API_URL="${KOLAYXPORT_API_URL:-https://kolayxport.com/api/clawd}"
 API_KEY="${KOLAYXPORT_API_KEY}"
-USER_ID="${EBAY_USER_ID}"
+USER_ID="${EBAY_USER_ID:-f0cb1c43-f30d-4f31-9a96-a9940ebada2d}"
 
 if [ -z "$API_KEY" ]; then
     echo "Error: KOLAYXPORT_API_KEY environment variable not set"
-    exit 1
-fi
-
-if [ -z "$USER_ID" ]; then
-    echo "Error: EBAY_USER_ID environment variable not set"
     exit 1
 fi
 
@@ -908,6 +903,43 @@ case "$CMD" in
             -H "Content-Type: application/json" \
             -d "$JSON_BODY")
         echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+        ;;
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # IMAGE UPLOAD
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    upload-image)
+        FILE_PATH="$1"
+        if [ -z "$FILE_PATH" ]; then
+            echo "Usage: ebay.sh upload-image <file_path>"
+            echo ""
+            echo "Uploads image to KolayXport/Supabase storage and returns a public URL."
+            echo "Use the returned URL in create/update listing imageUrls array."
+            echo ""
+            echo "Supported: JPEG, PNG, GIF, WebP, TIFF (max 12MB)"
+            echo ""
+            echo "Example:"
+            echo "  ebay.sh upload-image /tmp/product-photo.jpg"
+            echo "  # Returns: https://[project].supabase.co/storage/v1/object/public/listing-images/..."
+            exit 1
+        fi
+        if [ ! -f "$FILE_PATH" ]; then
+            echo "Error: File not found: $FILE_PATH"
+            exit 1
+        fi
+        RESPONSE=$(curl -s -X POST "${API_URL}/upload-image?userId=${USER_ID}" \
+            -H "x-api-key: ${API_KEY}" \
+            -F "file=@${FILE_PATH}")
+        echo "$RESPONSE" | jq -r '
+        if .url then
+            "Image uploaded successfully!\n" +
+            "URL: \(.url)\n" +
+            "Path: \(.path // "N/A")"
+        else
+            . | tostring
+        end
+        ' 2>/dev/null || echo "$RESPONSE"
         ;;
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
