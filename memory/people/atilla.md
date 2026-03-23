@@ -24,3 +24,6 @@
 ## Communication
 - Primary channels: Telegram (@biberovic_bot), WhatsApp (+905425683362)
 - Slack also configured
+- **Quiet hours: 01:00–10:00 CET — NO proactive WhatsApp messages** (he is sleeping)
+- SaaS/infra alerts → Telegram DM (not WhatsApp)
+- E-commerce updates → WhatsApp DM or tamsar-e-commerce group (but not during quiet hours)

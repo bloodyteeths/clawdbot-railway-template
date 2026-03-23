@@ -163,7 +163,33 @@ async function restartGateway() {
     await sleep(750);
     gatewayProc = null;
   }
+  // Clean stale browser locks left by the old Chrome process
+  cleanBrowserLocks();
   return ensureGatewayRunning();
+}
+
+function cleanBrowserLocks() {
+  const browserDir = path.join(STATE_DIR, "browser");
+  try {
+    if (!fs.existsSync(browserDir)) return;
+    for (const profile of fs.readdirSync(browserDir)) {
+      const udDir = path.join(browserDir, profile, "user-data");
+      if (!fs.existsSync(udDir)) continue;
+      for (const lockName of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) {
+        const lockPath = path.join(udDir, lockName);
+        // SingletonLock is a symlink (target = hostname-pid), so use lstatSync not existsSync
+        try {
+          fs.lstatSync(lockPath);
+          fs.rmSync(lockPath, { force: true });
+          console.log(`[browser] Cleaned stale lock: ${profile}/${lockName}`);
+        } catch {
+          // doesn't exist, skip
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[browser] lock cleanup error:", err);
+  }
 }
 
 function requireSetupAuth(req, res, next) {
@@ -1183,12 +1209,29 @@ app.get("/setup/api/pinterest/status", requireSetupAuth, async (_req, res) => {
 // ============ ALERT SENDER ============
 const SAAS_MONITOR_TOKEN = process.env.SAAS_MONITOR_TOKEN?.trim();
 
+// Check if current time is within quiet hours (01:00-10:00 CET/Skopje).
+function isQuietHours() {
+  const now = new Date();
+  const cetHour = Number(now.toLocaleString("en-US", { timeZone: "Europe/Belgrade", hour: "numeric", hour12: false }));
+  return cetHour >= 1 && cetHour < 10;
+}
+
 // Send an alert message to Atilla via Telegram (primary channel).
+// Quiet hours (01:00-10:00 CET): WhatsApp messages are suppressed.
+// Telegram alerts still go through for critical infra monitoring.
 async function sendAlert(message, opts = {}) {
   const channels = opts.channels || ["telegram"];
   const results = [];
+  const quiet = isQuietHours();
 
   for (const channel of channels) {
+    // During quiet hours, suppress WhatsApp proactive messages
+    if (quiet && channel === "whatsapp") {
+      console.log(`[alert] Suppressed WhatsApp alert during quiet hours (01:00-10:00 CET)`);
+      results.push({ channel, code: -1, output: "suppressed: quiet hours" });
+      continue;
+    }
+
     const args = ["dm", "send", "--channel", channel];
     if (channel === "whatsapp") {
       args.push("--to", opts.whatsappTo || "+905335010211");
@@ -1510,6 +1553,170 @@ setTimeout(() => {
 
 // ============ END DAILY CHAT HISTORY SUMMARIZER ============
 
+// ============ TOKEN HEALTH MONITOR ============
+// Checks token health every 15 minutes. If unhealthy or expiring, force-refreshes.
+// If refresh fails after retries, alerts Atilla on Telegram.
+// OpenClaw's built-in refresh is unreliable — this is the real safety net.
+const TOKEN_CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const TOKEN_REFRESH_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 hours (wide margin)
+const AUTH_PROFILES_PATH = path.join(STATE_DIR, "agents/main/agent/auth-profiles.json");
+
+let consecutiveTokenFailures = 0;
+let lastTokenRefreshTime = null;
+let tokenAlertSent = false; // prevent alert spam
+
+function readTokenExpiry() {
+  try {
+    const raw = fs.readFileSync(AUTH_PROFILES_PATH, "utf8");
+    const store = JSON.parse(raw);
+    const cred = store?.profiles?.["anthropic:default"];
+    if (!cred || cred.type !== "oauth") return null;
+    return { expires: cred.expires, accessPrefix: cred.access?.substring(0, 25) };
+  } catch {
+    return null;
+  }
+}
+
+function runTokenRefresh(force = false) {
+  return new Promise((resolve) => {
+    const args = ["/app/scripts/token-refresh.cjs", "--json", "--retry"];
+    if (force) args.push("--force");
+
+    console.log(`[token-health] Running token ${force ? "FORCE " : ""}refresh...`);
+    const proc = childProcess.spawn("node", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    });
+
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (d) => (stdout += d));
+    proc.stderr.on("data", (d) => (stderr += d));
+
+    proc.on("close", (code) => {
+      if (stderr) console.error(`[token-health] stderr: ${stderr.trim()}`);
+
+      let result;
+      try {
+        result = JSON.parse(stdout.trim());
+      } catch {
+        console.error(`[token-health] Non-JSON output: ${stdout.trim()}`);
+        result = { status: code === 0 ? "ok" : "failed", error: stdout.trim() };
+      }
+
+      console.log(`[token-health] Result: ${JSON.stringify(result)}`);
+      resolve({ code, result });
+    });
+
+    proc.on("error", (err) => {
+      console.error("[token-health] spawn error:", err);
+      resolve({ code: -1, result: { status: "error", error: err.message } });
+    });
+
+    // Kill if it takes too long (retries can take up to ~4 min)
+    setTimeout(() => {
+      try { proc.kill(); } catch {}
+    }, 5 * 60 * 1000);
+  });
+}
+
+async function checkTokenHealth() {
+  const tokenInfo = readTokenExpiry();
+
+  if (!tokenInfo) {
+    console.error("[token-health] Cannot read auth-profiles.json");
+    return;
+  }
+
+  const now = Date.now();
+  const expiresIn = tokenInfo.expires - now;
+  const expiresInH = (expiresIn / (60 * 60 * 1000)).toFixed(1);
+  const needsRefresh = expiresIn < TOKEN_REFRESH_THRESHOLD_MS;
+
+  if (!needsRefresh) {
+    console.log(`[token-health] Token OK (expires in ${expiresInH}h, prefix: ${tokenInfo.accessPrefix}...)`);
+    if (consecutiveTokenFailures > 0) {
+      consecutiveTokenFailures = 0;
+      tokenAlertSent = false;
+    }
+    return;
+  }
+
+  console.log(`[token-health] Token needs refresh (expires in ${expiresInH}h)`);
+  const { result } = await runTokenRefresh(true);
+
+  if (result.status === "refreshed") {
+    lastTokenRefreshTime = new Date().toISOString();
+    // If recovering from failure, send recovery alert
+    if (consecutiveTokenFailures > 0) {
+      console.log(`[token-health] RECOVERED after ${consecutiveTokenFailures} failures`);
+      sendAlert(`✅ Anthropic OAuth token recovered after ${consecutiveTokenFailures} failed attempts. New token expires in ${result.expiresIn}.`).catch(() => {});
+    }
+    consecutiveTokenFailures = 0;
+    tokenAlertSent = false;
+    console.log(`[token-health] Refresh successful. New token expires in ${result.expiresIn}`);
+  } else if (result.status === "failed" || result.status === "error") {
+    consecutiveTokenFailures++;
+    console.error(`[token-health] FAILURE #${consecutiveTokenFailures}: ${result.error}`);
+
+    // Alert after 2 consecutive failures (= 30 min of being down)
+    if (consecutiveTokenFailures >= 2 && !tokenAlertSent) {
+      tokenAlertSent = true;
+      const alertMsg = `⚠️ Anthropic OAuth token is DOWN. Auto-refresh failed ${consecutiveTokenFailures}x.\nError: ${result.error?.substring(0, 150)}\nBot cannot respond until this is fixed.\nManual fix: seed fresh token from macOS keychain.`;
+      sendAlert(alertMsg).catch((e) => console.error("[token-health] Alert send failed:", e));
+    }
+  }
+}
+
+// Emergency refresh — triggered by proxy when it detects a 403 from gateway
+let lastEmergencyRefresh = 0;
+async function triggerEmergencyRefresh() {
+  const now = Date.now();
+  // Debounce: max once per 5 minutes
+  if (now - lastEmergencyRefresh < 5 * 60 * 1000) return;
+  lastEmergencyRefresh = now;
+
+  console.log("[token-health] EMERGENCY: 403 detected from gateway, forcing token refresh...");
+  const { result } = await runTokenRefresh(true);
+  if (result.status === "refreshed") {
+    console.log("[token-health] Emergency refresh succeeded!");
+    consecutiveTokenFailures = 0;
+    tokenAlertSent = false;
+  } else {
+    console.error("[token-health] Emergency refresh FAILED:", result.error);
+    consecutiveTokenFailures++;
+  }
+}
+
+// Auth health endpoint
+app.get("/setup/api/auth-health", requireSetupAuth, (req, res) => {
+  const tokenInfo = readTokenExpiry();
+  if (!tokenInfo) {
+    return res.json({ ok: false, error: "Cannot read auth-profiles.json" });
+  }
+  const expiresIn = tokenInfo.expires - Date.now();
+  const expiresInH = (expiresIn / (60 * 60 * 1000)).toFixed(1);
+  res.json({
+    ok: expiresIn > 0 && consecutiveTokenFailures === 0,
+    expiresIn: `${expiresInH}h`,
+    expiresAt: new Date(tokenInfo.expires).toISOString(),
+    accessPrefix: tokenInfo.accessPrefix,
+    consecutiveFailures: consecutiveTokenFailures,
+    lastRefresh: lastTokenRefreshTime,
+    alertSent: tokenAlertSent,
+  });
+});
+
+setTimeout(() => {
+  // First check 45s after startup (give gateway time to start)
+  setTimeout(checkTokenHealth, 45000);
+  // Then every 15 minutes
+  setInterval(checkTokenHealth, TOKEN_CHECK_INTERVAL_MS);
+  console.log(`[token-health] Token health monitor started (every ${TOKEN_CHECK_INTERVAL_MS / 60000}min, threshold ${TOKEN_REFRESH_THRESHOLD_MS / 3600000}h)`);
+}, 7000);
+
+// ============ END TOKEN HEALTH MONITOR ============
+
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,
@@ -1519,6 +1726,24 @@ const proxy = httpProxy.createProxyServer({
 
 proxy.on("error", (err, _req, _res) => {
   console.error("[proxy]", err);
+});
+
+// Detect 403 auth errors from gateway and trigger emergency token refresh
+proxy.on("proxyRes", (proxyRes) => {
+  if (proxyRes.statusCode === 403) {
+    // Read a small chunk of the response to check if it's an OAuth error
+    let body = "";
+    proxyRes.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 500) body = body.substring(0, 500); // limit memory
+    });
+    proxyRes.on("end", () => {
+      if (body.includes("permission_error") || body.includes("OAuth") || body.includes("token")) {
+        console.error("[proxy] 403 OAuth error detected from gateway, triggering emergency refresh");
+        triggerEmergencyRefresh();
+      }
+    });
+  }
 });
 
 app.use(async (req, res) => {

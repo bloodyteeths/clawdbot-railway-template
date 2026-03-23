@@ -21,15 +21,18 @@ RUN corepack enable
 WORKDIR /clawdbot
 
 # Pin to a known ref (tag/branch). If it doesn't exist, fall back to main.
-ARG CLAWDBOT_GIT_REF=v2026.2.9
+ARG CLAWDBOT_GIT_REF=v2026.3.12
 RUN git clone --depth 1 --branch "${CLAWDBOT_GIT_REF}" https://github.com/clawdbot/clawdbot.git .
 
 # Patch: relax version requirements for packages that may reference unpublished versions.
-# Apply to all extension package.json files to handle workspace protocol (workspace:*).
+# Replace ALL workspace:* protocol references in every package.json (extensions, packages, root).
+# This covers clawdbot, @modelcontextprotocol/sdk, and any other workspace deps.
 RUN set -eux; \
-  find ./extensions -name 'package.json' -type f | while read -r f; do \
+  find . -name 'package.json' -not -path '*/node_modules/*' -type f | while read -r f; do \
+    sed -i -E 's/"workspace:\*"/"*"/g' "$f"; \
+    sed -i -E 's/"workspace:\^[^"]+"/"*"/g' "$f"; \
+    sed -i -E 's/"workspace:~[^"]+"/"*"/g' "$f"; \
     sed -i -E 's/"clawdbot"[[:space:]]*:[[:space:]]*">=[^"]+"/"clawdbot": "*"/g' "$f"; \
-    sed -i -E 's/"clawdbot"[[:space:]]*:[[:space:]]*"workspace:[^"]+"/"clawdbot": "*"/g' "$f"; \
   done
 
 RUN pnpm install --no-frozen-lockfile
@@ -86,20 +89,28 @@ COPY --from=clawdbot-build /clawdbot /clawdbot
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 RUN npm install -g playwright && playwright install --with-deps chromium
 
-# Provide a clawdbot executable
-RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /clawdbot/dist/entry.js "$@"' > /usr/local/bin/clawdbot \
+# Enable pnpm + provide a clawdbot executable
+RUN corepack enable \
+  && printf '%s\n' '#!/usr/bin/env bash' 'exec node /clawdbot/dist/entry.js "$@"' > /usr/local/bin/clawdbot \
   && chmod +x /usr/local/bin/clawdbot
 
 COPY src ./src
 COPY scripts ./scripts
 COPY CLAWD_TOOLS_PROMPT.md ./CLAWD_TOOLS_PROMPT.md
+COPY CLAWD_ETSY_TOOLS_PROMPT.md ./CLAWD_ETSY_TOOLS_PROMPT.md
+COPY EBAY_CLAWD_TOOLS_PROMPT.md ./EBAY_CLAWD_TOOLS_PROMPT.md
 COPY CLAUDE.md ./CLAUDE.md
 COPY SOUL.md IDENTITY.md AGENTS.md PRD.md SUBAGENT-POLICY.md TOOLS.md ./
 COPY .learnings ./.learnings
 COPY memory ./memory
 COPY skills ./skills
 COPY hooks ./hooks
-RUN chmod +x ./scripts/entrypoint.sh
+RUN chmod +x ./scripts/entrypoint.sh ./scripts/self-update.sh
+
+# Railway project IDs for self-update script
+ENV RAILWAY_PROJECT_ID=caf84229-f6c4-4c09-9be4-c500ce217e40
+ENV RAILWAY_SERVICE_ID=dda20e46-0d46-4e1f-a3f4-d9f85e328f9c
+ENV RAILWAY_ENVIRONMENT_ID=a9e7611f-87fc-4f74-9b9b-0b991c1832f7
 
 # The wrapper listens on this port.
 ENV CLAWDBOT_PUBLIC_PORT=8080

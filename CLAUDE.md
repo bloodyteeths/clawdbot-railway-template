@@ -54,9 +54,13 @@ Clawd is a personal AI assistant for **Atilla** and **Merisa**, built on Moltbot
 | skill-creator | ✅ Ready | Create custom skills |
 | bluebubbles | ✅ Ready | iMessage bridge |
 
+### Anthropic Auth (NOT an env var)
+- Auth is via **OpenClaw setup-token** stored in `/data/.clawdbot/agents/main/agent/auth-profiles.json`
+- Do NOT look for or set `ANTHROPIC_API_KEY` env var — it does not exist and is not needed
+- Token auto-refreshes via the OpenClaw gateway
+
 ### Environment Variables (Railway)
 ```
-ANTHROPIC_API_KEY     - Claude API
 GEMINI_API_KEY        - Image generation
 TRELLO_API_KEY        - Trello integration
 TRELLO_TOKEN          - Trello auth
@@ -86,7 +90,7 @@ SETUP_PASSWORD        - pZMcVLVMcmLomrCQ
   "browser": {
     "headless": true,
     "noSandbox": true,
-    "defaultProfile": "clawd",
+    "defaultProfile": "openclaw",
     "executablePath": "/root/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome"
   }
 }
@@ -184,6 +188,7 @@ curl -s -u user:pZMcVLVMcmLomrCQ "https://clawdbot-va-production.up.railway.app/
 | `scripts/entrypoint.sh` | Container startup (gog auth setup) |
 | `scripts/browser-automation.cjs` | Direct Puppeteer script (bypass Moltbot) |
 | `scripts/kolayxport.sh` | KolayXport orders API helper |
+| `scripts/self-update.sh` | Self-update via Railway API (redeploy with new version) |
 | `package.json` | Dependencies: express, http-proxy, puppeteer-core, tar |
 
 ---
@@ -205,6 +210,40 @@ curl -s -u user:pZMcVLVMcmLomrCQ "https://clawdbot-va-production.up.railway.app/
 - [ ] Customer support automation
 - [ ] Daily business reports cron
 - [ ] Etsy API (when approved)
+
+---
+
+## Self-Update
+
+You can update yourself to the latest OpenClaw version. When a user asks you to update, use these shell commands:
+
+### Check for updates
+```bash
+/app/scripts/self-update.sh --check
+```
+
+### Update to latest version
+```bash
+/app/scripts/self-update.sh
+```
+
+### Update to specific version
+```bash
+/app/scripts/self-update.sh v2026.3.8
+```
+
+**How it works:** The script checks `npm view openclaw version` for the latest release, updates the `CLAWDBOT_GIT_REF` build variable via the Railway API, and triggers a container redeploy. The rebuild takes ~10-15 minutes. You will go offline briefly during the rebuild.
+
+**IMPORTANT: Do NOT use `openclaw update` — it does not work in Docker containers.** Always use `/app/scripts/self-update.sh` instead.
+
+**After any update completes** (when you come back online), verify:
+1. `clawdbot --version` shows the new version
+2. `config get agents.defaults.workspace` → must be `/data/workspace`
+3. `models status` → Anthropic auth must be valid
+4. `channels status` → all channels must be running
+5. If v2026.3.8+ requires `hooks.token` to differ from gateway token, run: `config set hooks.token <random-hex>`
+
+If workspace path resets after an upgrade, fix with: `config set agents.defaults.workspace /data/workspace`
 
 ---
 

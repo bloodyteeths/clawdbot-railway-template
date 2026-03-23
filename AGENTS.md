@@ -6,9 +6,9 @@
 
 ### Observability
 - All cron jobs MUST use cron-log.sh for logging
-- Check cron health during heartbeats: run `/app/scripts/cron-health.sh`
-- Check urgent alerts during heartbeats: run `node /app/scripts/urgent-alerts.cjs`
-- Review `.learnings/` directory for recent error patterns
+- During heartbeats, you may SILENTLY run health checks (cron-health.sh, urgent-alerts.cjs) and review .learnings/
+- **Do NOT send messages during heartbeats unless something is broken or needs human action**
+- "All healthy" is not a message — log it silently and move on
 
 ### Error Recovery
 - When a script fails, check `.learnings/` for known solutions
@@ -26,5 +26,5 @@
 Every cron job must:
 1. Source cron-log.sh or write to cron-log.jsonl
 2. Handle failures gracefully (don't crash, log the error)
-3. Send summary to appropriate channel on completion
+3. **Only send a message if something needs attention.** Do NOT send "all clear" summaries — silence means healthy.
 4. Be idempotent (safe to run twice)

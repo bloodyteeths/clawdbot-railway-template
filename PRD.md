@@ -69,8 +69,8 @@ Persistent volumes:
 
 | Setting | Value | Notes |
 |---------|-------|-------|
-| Model | Claude (Anthropic API key) | via `ANTHROPIC_API_KEY` |
-| Auth | `apiKey` | Anthropic API key flow |
+| Model | Claude (Anthropic) | via OpenClaw setup-token in auth-profiles.json |
+| Auth | `setup-token` | OAuth token stored in auth-profiles.json (NOT env var) |
 | Gateway bind | loopback | Wrapper proxies externally |
 | Gateway port | 18789 | Internal only |
 | Gateway auth | token | Stable across restarts |
@@ -396,7 +396,7 @@ Manual backup available: `GET /setup/export` (downloads .tar.gz)
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| ANTHROPIC_API_KEY | Claude API access | sk-ant-... |
+| _(no env var)_ | Claude auth via auth-profiles.json | setup-token (auto-refresh) |
 | SETUP_PASSWORD | Protects /setup admin UI | pZMcVLVMcmLomrCQ |
 | KOLAYXPORT_API_KEY | KolayXport proxy auth (Etsy + Trendyol) | (secret) |
 | KOLAYXPORT_API_URL | KolayXport API base URL | https://kolayxport.com/api/clawd |

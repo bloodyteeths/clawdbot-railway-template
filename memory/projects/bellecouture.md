@@ -25,6 +25,7 @@
 ## Tools & Management
 - Vela is legacy — use Etsy API (etsy.sh) for all operations
 - **Pricing:** Only Merisa approves price changes (Hard Rule)
+- **Price changes on variation listings:** Use `etsy.sh get-inventory` / `update-inventory`, NOT `update`. The `update` command cannot change prices on listings with variations.
 
 ## Key Sheets
 - **Etsy Audit:** https://docs.google.com/spreadsheets/d/1jc5d5q3601uCnJnsd29lVIV3mpgwVI-SvF028SeUkk0

@@ -42,6 +42,7 @@
 - **ICP:** E-commerce, agencies, distributors (20-200 invoices/mo)
 - **Channel:** Accountant partnerships (1 accountant = 20-50 SMBs)
 - **Pricing:** EUR 19-49/mo SaaS + EUR 15/bank/mo PSD2 + 0.2-0.4% payment
+- **Accountant market sizing:** Average accountant charges EUR 50-60/mo per client, manages 30-35 clients each
 
 ## Clawd Operational Capabilities
 

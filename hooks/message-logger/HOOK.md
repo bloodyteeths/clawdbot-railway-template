@@ -4,8 +4,7 @@ description: "Logs all inbound and outbound messages to daily JSONL files for pe
 metadata:
   openclaw:
     events:
-      - "message:received"
-      - "message:sent"
+      - "command"
     always: true
 ---
 

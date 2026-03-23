@@ -3,7 +3,7 @@
 ## Company
 - **URL:** https://nabavkidata.com
 - **API:** https://api.nabavkidata.com
-- **Infrastructure:** AWS EC2 (18.197.185.30), FastAPI + PostgreSQL
+- **Infrastructure:** Hetzner VPS (46.224.89.197), FastAPI + PostgreSQL
 - **Target:** Macedonian businesses monitoring public procurement tenders
 
 ## Product
@@ -28,7 +28,7 @@ For detailed commands, read skill: `skills/nabavkidata/SKILL.md`
 | Revenue tracking | `node /app/scripts/financial-tracker.cjs` |
 
 ## Deployment
-- **NOT git-deployed** — manual SCP/SSH to EC2
-- Server: `ubuntu@18.197.185.30`
+- **NOT git-deployed** — manual SCP/SSH to Hetzner VPS
+- Server: `ubuntu@46.224.89.197`
 - Process: raw uvicorn (no systemd/docker)
 - Key: `~/.ssh/nabavki-key.pem`

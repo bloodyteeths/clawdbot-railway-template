@@ -4,18 +4,49 @@
       "model": {
         "primary": "anthropic/claude-sonnet-4-20250514"
       },
-      "workspace": "/data/workspace",
-      "contextTokens": 32000,
-      "contextPruning": { "mode": "cache-ttl", "ttl": "5m" },
-      "compaction": {
-        "mode": "default"
+      "models": {
+        "anthropic/claude-sonnet-4-20250514": {
+          "params": {
+            "cacheRetention": "short"
+          }
+        }
       },
-      "bootstrapMaxChars": 20000,
-      "heartbeat": { "every": "1h" },
-      "maxConcurrent": 2,
+      "workspace": "/data/workspace",
+      "contextTokens": 128000,
+      "contextPruning": { "mode": "cache-ttl", "ttl": "30m" },
+      "compaction": {
+        "mode": "default",
+        "reserveTokensFloor": 32000,
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 8000
+        }
+      },
+      "bootstrapMaxChars": 40000,
+      "heartbeat": { "every": "2h" },
+      "maxConcurrent": 4,
       "subagents": {
-        "maxConcurrent": 4
+        "maxConcurrent": 8
       }
+    }
+  },
+  "browser": {
+    "headless": true,
+    "noSandbox": true,
+    "defaultProfile": "openclaw",
+    "executablePath": "/root/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome",
+    "extraArgs": ["--disable-gpu", "--disable-dev-shm-usage", "--disable-background-networking", "--disable-extensions", "--disable-sync", "--no-first-run"],
+    "attachOnly": true,
+    "cdpUrl": "http://127.0.0.1:18800"
+  },
+  "session": {
+    "reset": {
+      "mode": "idle",
+      "idleMinutes": 480
+    },
+    "resetByType": {
+      "direct": { "mode": "idle", "idleMinutes": 720 },
+      "group": { "mode": "idle", "idleMinutes": 240 }
     }
   }
 }

@@ -11,14 +11,17 @@
 | Investor Tracker | 1rHbBpdlQb8Z_6tZvuTEjDSbSv2neEDL-ZG0E3K4g7Vc | VC outreach |
 | Etsy Audit | 1jc5d5q3601uCnJnsd29lVIV3mpgwVI-SvF028SeUkk0 | Listing audit |
 
-## Integrations (credentials in environment variables)
+## Integrations
+
+For full credential details, see `memory/reference/credentials.md`.
 
 | Service | Purpose | Credential Location |
 |---------|---------|---------------------|
 | Postmark | Outbound email (partners@facturino.mk, atilla@facturino.mk) | POSTMARK_TOKEN env var |
 | Apollo | VC/lead research, email unlock (Pro tier) | APOLLO_API_KEY env var |
 | ElevenLabs | Text-to-speech (Free tier: 10K chars/month, NO video generation) | ELEVENLABS_API_KEY env var |
-| eRank | Etsy SEO research | ERANK_EMAIL, ERANK_PASSWORD env vars |
+| eRank | Etsy SEO research | Hardcoded in erank.cjs |
+| KolayXport | Etsy/Trendyol proxy | KOLAYXPORT_API_KEY, KOLAYXPORT_API_URL env vars |
 
 ## WhatsApp Groups
 

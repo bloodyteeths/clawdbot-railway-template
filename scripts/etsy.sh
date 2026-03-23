@@ -15,6 +15,8 @@
 #   return-policies           - List return policies
 #   shop-sections             - List shop sections
 #   readiness-states          - List processing profiles (readiness states)
+#   get-inventory ID          - Get listing inventory (variations, prices, quantities)
+#   update-inventory ID       - Update variation prices/quantities (reads JSON from stdin)
 #   get-personalization ID    - Get personalization questions for a listing
 #   set-personalization ID    - Set personalization questions (reads JSON from stdin)
 #   simple-personalization ID - Set simple personalization (reads JSON from stdin)
@@ -352,6 +354,87 @@ case "$CMD" in
         ' 2>/dev/null || echo "$RESPONSE"
         ;;
 
+    get-inventory)
+        LISTING_ID="$1"
+        if [ -z "$LISTING_ID" ]; then
+            echo "Usage: etsy.sh get-inventory <listing_id>"
+            echo ""
+            echo "Returns all variations with their prices and quantities."
+            echo "Use this to see per-variation pricing before updating."
+            exit 1
+        fi
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_listing_inventory&listing_id=${LISTING_ID}")
+        echo "$RESPONSE" | jq -r '
+        if .products then
+            "Inventory for listing \(.listing_id // "N/A"):\n" +
+            "Products/Variations: \(.products | length)\n" +
+            (.products | to_entries | map(
+                "\n━━━ Variation #\(.key + 1) ━━━\n" +
+                "Product ID: \(.value.product_id)\n" +
+                (if .value.property_values and (.value.property_values | length > 0) then
+                    (.value.property_values | map(
+                        "  \(.property_name // "Property"): \(.values | join(", "))"
+                    ) | join("\n")) + "\n"
+                else
+                    "  (No variations - single product)\n"
+                end) +
+                (.value.offerings | map(
+                    "  Offering ID: \(.offering_id)\n" +
+                    "  Price: $\((.price.amount // 0) / (.price.divisor // 100))\n" +
+                    "  Quantity: \(.quantity)\n" +
+                    "  Enabled: \(.is_enabled)"
+                ) | join("\n"))
+            ) | join("\n"))
+        elif .error then
+            "Error: \(.error)"
+        else
+            . | tostring
+        end
+        ' 2>/dev/null || echo "$RESPONSE"
+        ;;
+
+    update-inventory)
+        LISTING_ID="$1"
+        if [ -z "$LISTING_ID" ]; then
+            echo "Usage: echo '<json>' | etsy.sh update-inventory <listing_id>"
+            echo ""
+            echo "Updates variation prices and quantities."
+            echo ""
+            echo "IMPORTANT: You must include ALL variations in the update,"
+            echo "not just the ones you want to change."
+            echo ""
+            echo "Steps:"
+            echo "  1. etsy.sh get-inventory <id>    # Get current inventory"
+            echo "  2. Modify prices/quantities in the JSON"
+            echo "  3. Pipe modified JSON to update-inventory"
+            echo ""
+            echo "Input format (products array from get-inventory):"
+            echo '  {"products": [{"product_id": 123, "property_values": [...], "offerings": [{"offering_id": 456, "price": 29.99, "quantity": 10, "is_enabled": true}]}]}'
+            echo ""
+            echo "Example - change all variation prices to \$35:"
+            echo '  etsy.sh get-inventory 12345 | jq '"'"'{ products: [.products[] | { product_id, property_values, offerings: [.offerings[] | .price = 35.00] }] }'"'"' | etsy.sh update-inventory 12345'
+            exit 1
+        fi
+        JSON_BODY=$(cat)
+        RESPONSE=$(curl -s -X PUT "${API_URL}/etsy?apiKey=${API_KEY}&action=update_listing_inventory&listing_id=${LISTING_ID}" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_BODY")
+        echo "$RESPONSE" | jq -r '
+        if .products then
+            "Inventory updated successfully!\n" +
+            "Listing: \(.listing_id // "N/A")\n" +
+            "Variations updated: \(.products | length)\n" +
+            (.products | to_entries | map(
+                "  Variation #\(.key + 1): $\((.value.offerings[0].price.amount // 0) / (.value.offerings[0].price.divisor // 100)) x \(.value.offerings[0].quantity)"
+            ) | join("\n"))
+        elif .error then
+            "Error: \(.error)"
+        else
+            . | tostring
+        end
+        ' 2>/dev/null || echo "$RESPONSE"
+        ;;
+
     get-personalization)
         LISTING_ID="$1"
         if [ -z "$LISTING_ID" ]; then
@@ -475,6 +558,10 @@ case "$CMD" in
         echo "  update LISTING_ID         - Update listing (JSON from stdin)"
         echo "  create-draft              - Create draft listing (JSON from stdin)"
         echo "  delete LISTING_ID         - Delete a listing"
+        echo ""
+        echo "INVENTORY / VARIATION PRICES:"
+        echo "  get-inventory LISTING_ID  - Get all variations with prices & quantities"
+        echo "  update-inventory ID       - Update variation prices/quantities (JSON from stdin)"
         echo ""
         echo "PERSONALIZATION:"
         echo "  get-personalization ID    - Get personalization questions"
