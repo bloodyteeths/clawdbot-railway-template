@@ -38,15 +38,18 @@ if [ -f /app/CLAWD_TOOLS_PROMPT.md ]; then
 fi
 
 # Copy operational docs to workspace
-# SOUL.md + AGENTS.md in root (read at session start)
-# PRD.md + SUBAGENT-POLICY.md + IDENTITY.md in docs/ (read on demand only — saves context)
+# SOUL.md + AGENTS.md + IDENTITY.md + TOOLS.md in root (auto-injected at bootstrap)
+# PRD.md + SUBAGENT-POLICY.md in docs/ (read on demand only — saves context)
 mkdir -p /data/workspace/.learnings /data/workspace/docs
-for doc in SOUL.md AGENTS.md; do
+for doc in SOUL.md AGENTS.md IDENTITY.md TOOLS.md BOOT.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/$doc"
 done
-for doc in PRD.md SUBAGENT-POLICY.md IDENTITY.md TOOLS.md; do
+for doc in PRD.md SUBAGENT-POLICY.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/docs/$doc"
 done
+# Keep copies in docs/ for backward compatibility (CLAWD_TOOLS_PROMPT.md references docs/TOOLS.md)
+[ -f "/app/IDENTITY.md" ] && cp "/app/IDENTITY.md" "/data/workspace/docs/IDENTITY.md"
+[ -f "/app/TOOLS.md" ] && cp "/app/TOOLS.md" "/data/workspace/docs/TOOLS.md"
 # Copy e-commerce tools prompts to docs/ (read on demand, not at bootstrap)
 for doc in CLAWD_ETSY_TOOLS_PROMPT.md EBAY_CLAWD_TOOLS_PROMPT.md; do
     [ -f "/app/$doc" ] && cp "/app/$doc" "/data/workspace/docs/$doc"
@@ -82,7 +85,7 @@ for f in /data/workspace/*.md; do
     [ -f "$f" ] || continue
     fname=$(basename "$f")
     case "$fname" in
-        CLAUDE.md|SOUL.md|AGENTS.md|HEARTBEAT.md) ;; # keep known root files
+        CLAUDE.md|SOUL.md|AGENTS.md|HEARTBEAT.md|IDENTITY.md|TOOLS.md|BOOT.md) ;; # keep known root files
         *) mv "$f" /data/workspace/generated/ 2>/dev/null || true ;;
     esac
 done

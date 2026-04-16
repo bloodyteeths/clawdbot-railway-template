@@ -26,6 +26,7 @@ set -e
 
 API_URL="${KOLAYXPORT_API_URL:-https://kolayxport.com/api/clawd}"
 API_KEY="${KOLAYXPORT_API_KEY}"
+SHOP_ID="${ETSY_SHOP_ID:-54844618}"
 
 if [ -z "$API_KEY" ]; then
     echo "Error: KOLAYXPORT_API_KEY environment variable not set"
@@ -37,7 +38,7 @@ shift 2>/dev/null || true
 
 case "$CMD" in
     orders)
-        PARAMS="apiKey=${API_KEY}&action=receipts"
+        PARAMS="apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=receipts"
         while [[ $# -gt 0 ]]; do
             case $1 in
                 --customer)
@@ -81,7 +82,7 @@ case "$CMD" in
             echo "Usage: etsy.sh order <receipt_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=receipt&receipt_id=${RECEIPT_ID}")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=receipt&receipt_id=${RECEIPT_ID}")
         echo "$RESPONSE" | jq -r '
         "━━━ Order #\(.receipt_id) ━━━\n" +
         "Customer: \(.customer.name // "N/A")\n" +
@@ -93,7 +94,7 @@ case "$CMD" in
         ;;
 
     listings)
-        PARAMS="apiKey=${API_KEY}&action=listings"
+        PARAMS="apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=listings"
         while [[ $# -gt 0 ]]; do
             case $1 in
                 --limit)
@@ -124,7 +125,7 @@ case "$CMD" in
             echo "Usage: etsy.sh listing <listing_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=listing&listing_id=${LISTING_ID}")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=listing&listing_id=${LISTING_ID}")
         echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
         ;;
 
@@ -135,7 +136,7 @@ case "$CMD" in
             exit 1
         fi
         JSON_BODY=$(cat)
-        RESPONSE=$(curl -s -X PATCH "${API_URL}/etsy?apiKey=${API_KEY}&action=update_listing&listing_id=${LISTING_ID}" \
+        RESPONSE=$(curl -s -X PATCH "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=update_listing&listing_id=${LISTING_ID}" \
             -H "Content-Type: application/json" \
             -d "$JSON_BODY")
         echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
@@ -143,7 +144,7 @@ case "$CMD" in
 
     create-draft)
         JSON_BODY=$(cat)
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=create_listing" \
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=create_listing" \
             -H "Content-Type: application/json" \
             -d "$JSON_BODY")
         echo "$RESPONSE" | jq -r '
@@ -166,7 +167,7 @@ case "$CMD" in
             echo "Usage: etsy.sh delete <listing_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s -X DELETE "${API_URL}/etsy?apiKey=${API_KEY}&action=delete_listing&listing_id=${LISTING_ID}")
+        RESPONSE=$(curl -s -X DELETE "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=delete_listing&listing_id=${LISTING_ID}")
         echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
         ;;
 
@@ -179,7 +180,7 @@ case "$CMD" in
             exit 1
         fi
         PREFIX="${2:-COPY - }"
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=copy_listing" \
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=copy_listing" \
             -H "Content-Type: application/json" \
             -d "{\"source_listing_id\":${LISTING_ID},\"title_prefix\":\"${PREFIX}\"}")
         echo "$RESPONSE" | jq -r '
@@ -227,7 +228,7 @@ case "$CMD" in
         else
             JSON_DATA="{\"image_url\":\"${IMAGE_URL}\",\"rank\":${RANK}}"
         fi
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=upload_image&listing_id=${LISTING_ID}" \
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=upload_image&listing_id=${LISTING_ID}" \
             -H "Content-Type: application/json" \
             -d "$JSON_DATA")
         echo "$RESPONSE" | jq -r '
@@ -250,7 +251,7 @@ case "$CMD" in
             echo "Usage: etsy.sh publish <listing_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=publish&listing_id=${LISTING_ID}")
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=publish&listing_id=${LISTING_ID}")
         echo "$RESPONSE" | jq -r '
         if .success then
             "Listing published!\n" +
@@ -289,7 +290,7 @@ case "$CMD" in
         if [ -z "$VIDEO_NAME" ]; then
             VIDEO_NAME=$(basename "$VIDEO_URL" | sed 's/\.[^.]*$//')
         fi
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=upload_video&listing_id=${LISTING_ID}" \
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=upload_video&listing_id=${LISTING_ID}" \
             -H "Content-Type: application/json" \
             -d "{\"video_url\":\"${VIDEO_URL}\",\"name\":\"${VIDEO_NAME}\"}")
         echo "$RESPONSE" | jq -r '
@@ -311,12 +312,12 @@ case "$CMD" in
             echo "Usage: etsy.sh get-video <listing_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_listing_videos&listing_id=${LISTING_ID}")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_listing_videos&listing_id=${LISTING_ID}")
         echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
         ;;
 
     shipping-profiles)
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_shipping_profiles")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_shipping_profiles")
         echo "$RESPONSE" | jq -r '
         "Shipping Profiles (\(.count)):\n" +
         (.shipping_profiles | map(
@@ -329,12 +330,12 @@ case "$CMD" in
         ;;
 
     return-policies)
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_return_policies")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_return_policies")
         echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
         ;;
 
     shop-sections)
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_shop_sections")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_shop_sections")
         echo "$RESPONSE" | jq -r '
         "Shop Sections (\(.count)):\n" +
         (.sections | map(
@@ -344,7 +345,7 @@ case "$CMD" in
         ;;
 
     readiness-states)
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_readiness_states")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_readiness_states")
         echo "$RESPONSE" | jq -r '
         "Processing Profiles / Readiness States (\(.count)):\n" +
         (.readiness_states | map(
@@ -363,7 +364,7 @@ case "$CMD" in
             echo "Use this to see per-variation pricing before updating."
             exit 1
         fi
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_listing_inventory&listing_id=${LISTING_ID}")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_listing_inventory&listing_id=${LISTING_ID}")
         echo "$RESPONSE" | jq -r '
         if .products then
             "Inventory for listing \(.listing_id // "N/A"):\n" +
@@ -416,7 +417,7 @@ case "$CMD" in
             exit 1
         fi
         JSON_BODY=$(cat)
-        RESPONSE=$(curl -s -X PUT "${API_URL}/etsy?apiKey=${API_KEY}&action=update_listing_inventory&listing_id=${LISTING_ID}" \
+        RESPONSE=$(curl -s -X PUT "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=update_listing_inventory&listing_id=${LISTING_ID}" \
             -H "Content-Type: application/json" \
             -d "$JSON_BODY")
         echo "$RESPONSE" | jq -r '
@@ -441,7 +442,7 @@ case "$CMD" in
             echo "Usage: etsy.sh get-personalization <listing_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&action=get_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true")
+        RESPONSE=$(curl -s "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=get_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true")
         echo "$RESPONSE" | jq -r '
         if .personalization_questions then
             "Personalization for listing \(.listing_id // "N/A"):\n" +
@@ -480,7 +481,7 @@ case "$CMD" in
             exit 1
         fi
         JSON_BODY=$(cat)
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=set_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true" \
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=set_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true" \
             -H "Content-Type: application/json" \
             -d "$JSON_BODY")
         echo "$RESPONSE" | jq -r '
@@ -504,7 +505,7 @@ case "$CMD" in
             exit 1
         fi
         JSON_BODY=$(cat)
-        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&action=set_simple_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true" \
+        RESPONSE=$(curl -s -X POST "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=set_simple_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true" \
             -H "Content-Type: application/json" \
             -d "$JSON_BODY")
         echo "$RESPONSE" | jq -r '
@@ -525,7 +526,7 @@ case "$CMD" in
             echo "Usage: etsy.sh remove-personalization <listing_id>"
             exit 1
         fi
-        RESPONSE=$(curl -s -X DELETE "${API_URL}/etsy?apiKey=${API_KEY}&action=remove_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true")
+        RESPONSE=$(curl -s -X DELETE "${API_URL}/etsy?apiKey=${API_KEY}&shop_id=${SHOP_ID}&action=remove_personalization&listing_id=${LISTING_ID}&supports_multiple_personalization_questions=true")
         echo "$RESPONSE" | jq -r '
         if .success then
             "Personalization removed from listing \(.listing_id // "N/A")"
