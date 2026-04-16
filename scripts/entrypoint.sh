@@ -1,6 +1,17 @@
 #!/bin/bash
 set -e
 
+# v2026.4.x compat: OpenClaw renamed CLAWDBOT_* env vars to OPENCLAW_*.
+# The legacy names still exist on Railway but are ignored by the new gateway.
+# Map forward so one set of vars works across versions.
+export OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-${CLAWDBOT_STATE_DIR:-/data/.clawdbot}}"
+export OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-${CLAWDBOT_CONFIG_PATH:-/data/.clawdbot/moltbot.json}}"
+export OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-${CLAWDBOT_WORKSPACE_DIR:-/data/workspace}}"
+export OPENCLAW_PUBLIC_PORT="${OPENCLAW_PUBLIC_PORT:-${CLAWDBOT_PUBLIC_PORT:-8080}}"
+export OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-${CLAWDBOT_GATEWAY_TOKEN:-}}"
+echo "[entrypoint] OPENCLAW_CONFIG_PATH=$OPENCLAW_CONFIG_PATH"
+echo "[entrypoint] OPENCLAW_STATE_DIR=$OPENCLAW_STATE_DIR"
+
 # Set up gog CLI credentials if provided via environment variables
 GOG_CONFIG_DIR="${HOME}/.config/gog"
 GOG_DATA_DIR="${HOME}/.local/share/gogcli"

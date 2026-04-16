@@ -120,6 +120,10 @@ async function startGateway() {
       ...process.env,
       CLAWDBOT_STATE_DIR: STATE_DIR,
       CLAWDBOT_WORKSPACE_DIR: WORKSPACE_DIR,
+      // v2026.4.x compat: gateway only reads OPENCLAW_* in newer versions.
+      OPENCLAW_STATE_DIR: STATE_DIR,
+      OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
+      OPENCLAW_CONFIG_PATH: configPath(),
     },
   });
 
@@ -1687,6 +1691,50 @@ async function triggerEmergencyRefresh() {
     consecutiveTokenFailures++;
   }
 }
+
+// Seed Anthropic OAuth profile from a POST body. Used to refresh tokens
+// extracted from the Claude Code macOS keychain when auto-refresh has died.
+// Body: { access: "sk-ant-oat01-...", refresh: "sk-ant-ort01-...", expires: 123456789 }
+app.post("/setup/api/seed-oauth", requireSetupAuth, (req, res) => {
+  try {
+    const { access, refresh, expires } = req.body || {};
+    if (!access || !refresh || typeof expires !== "number") {
+      return res.status(400).json({ ok: false, error: "Need {access, refresh, expires:number}" });
+    }
+    if (!/^sk-ant-oat01-/.test(access) || !/^sk-ant-ort01-/.test(refresh)) {
+      return res.status(400).json({ ok: false, error: "Token prefix mismatch" });
+    }
+    const store = {
+      version: 1,
+      profiles: {
+        "anthropic:default": {
+          type: "oauth",
+          provider: "anthropic",
+          access,
+          refresh,
+          expires,
+        },
+      },
+    };
+    fs.mkdirSync(path.dirname(AUTH_PROFILES_PATH), { recursive: true });
+    const tmp = `${AUTH_PROFILES_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
+    fs.renameSync(tmp, AUTH_PROFILES_PATH);
+    // Reset failure counters so the auto-refresh monitor trusts the new token.
+    consecutiveTokenFailures = 0;
+    tokenAlertSent = false;
+    lastTokenRefreshTime = new Date().toISOString();
+    res.json({
+      ok: true,
+      path: AUTH_PROFILES_PATH,
+      expiresAt: new Date(expires).toISOString(),
+      expiresInH: ((expires - Date.now()) / 3600000).toFixed(1),
+    });
+  } catch (err) {
+    console.error("[/setup/api/seed-oauth] error:", err);
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
 
 // Auth health endpoint
 app.get("/setup/api/auth-health", requireSetupAuth, (req, res) => {
