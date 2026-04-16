@@ -25,13 +25,14 @@ ARG CLAWDBOT_GIT_REF=v2026.3.12
 RUN git clone --depth 1 --branch "${CLAWDBOT_GIT_REF}" https://github.com/clawdbot/clawdbot.git .
 
 # Patch: relax version requirements for packages that may reference unpublished versions.
-# Replace ALL workspace:* protocol references in every package.json (extensions, packages, root).
-# This covers clawdbot, @modelcontextprotocol/sdk, and any other workspace deps.
+# Replace workspace:* protocol refs in every package.json EXCEPT for @openclaw/plugin-sdk,
+# which is a private, unpublished workspace-only package (v2026.4.x extensions like moonshot
+# depend on it as workspace:* — rewriting to "*" makes pnpm search npm and 404).
 RUN set -eux; \
   find . -name 'package.json' -not -path '*/node_modules/*' -type f | while read -r f; do \
-    sed -i -E 's/"workspace:\*"/"*"/g' "$f"; \
-    sed -i -E 's/"workspace:\^[^"]+"/"*"/g' "$f"; \
-    sed -i -E 's/"workspace:~[^"]+"/"*"/g' "$f"; \
+    sed -i -E '/@openclaw\/plugin-sdk/!s/"workspace:\*"/"*"/g' "$f"; \
+    sed -i -E '/@openclaw\/plugin-sdk/!s/"workspace:\^[^"]+"/"*"/g' "$f"; \
+    sed -i -E '/@openclaw\/plugin-sdk/!s/"workspace:~[^"]+"/"*"/g' "$f"; \
     sed -i -E 's/"clawdbot"[[:space:]]*:[[:space:]]*">=[^"]+"/"clawdbot": "*"/g' "$f"; \
   done
 
